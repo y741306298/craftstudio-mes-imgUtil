@@ -1,0 +1,7 @@
+{
+  "requestId": "demo-stripes-001",
+  "raster": {
+    "kind": "STRIPES", "widthMm": 100, "heightMm": 5, "dpi": 150,
+    "stripeMm": 0.5, "verticalStripes": false, "rotationDegrees": 90
+  }
+}

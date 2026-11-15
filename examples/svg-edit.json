@@ -1,0 +1,12 @@
+{
+  "requestId": "demo-edit-001",
+  "svg": {
+    "kind": "EDIT",
+    "source": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"100\" height=\"50\" viewBox=\"0 0 100 50\"><g id=\"original\" img=\"front.png\" require-plt=\"true\"><rect width=\"100\" height=\"50\"/></g><g id=\"old-mark\"/></svg>",
+    "margins": {"left": 10, "top": 10, "right": 10, "bottom": 10},
+    "normalizeRects": true,
+    "removeGroupIds": ["old-mark"],
+    "imageReplacements": {"original": "back.png"},
+    "marks": [{"kind": "CROSS", "id": "anchor", "x": 1, "y": 1, "width": 8, "height": 8, "requirePlt": false}]
+  }
+}

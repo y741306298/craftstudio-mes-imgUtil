@@ -1,0 +1,54 @@
+server:
+  address: ${SERVER_ADDRESS:127.0.0.1}
+  port: ${SERVER_PORT:8092}
+  shutdown: graceful
+  tomcat:
+    threads:
+      max: 16
+      min-spare: 2
+    max-connections: 64
+    accept-count: 32
+    connection-timeout: 10s
+spring:
+  jackson:
+    deserialization:
+      fail-on-null-for-primitives: false
+  application:
+    name: craftstudio-mes-imgutil
+  profiles:
+    default: dev
+  lifecycle:
+    timeout-per-shutdown-phase: 15s
+  servlet:
+    multipart:
+      enabled: false
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+  endpoint:
+    health:
+      show-details: never
+graphics:
+  api-key: ${GRAPHICS_API_KEY:}
+  data-directory: ${GRAPHICS_DATA_DIRECTORY:./data}
+  workers: ${GRAPHICS_WORKERS:2}
+  queue-capacity: ${GRAPHICS_QUEUE_CAPACITY:16}
+  task-timeout-seconds: ${GRAPHICS_TASK_TIMEOUT_SECONDS:30}
+  retention-hours: ${GRAPHICS_RETENTION_HOURS:24}
+  max-dimension: ${GRAPHICS_MAX_DIMENSION:8192}
+  max-pixels: ${GRAPHICS_MAX_PIXELS:8000000}
+  max-dpi: ${GRAPHICS_MAX_DPI:600}
+  max-request-bytes: ${GRAPHICS_MAX_REQUEST_BYTES:1048576}
+  max-artifact-bytes: ${GRAPHICS_MAX_ARTIFACT_BYTES:33554432}
+  max-svg-nodes: ${GRAPHICS_MAX_SVG_NODES:20000}
+  max-svg-depth: ${GRAPHICS_MAX_SVG_DEPTH:64}
+  max-storage-bytes: ${GRAPHICS_MAX_STORAGE_BYTES:2147483648}
+  oss:
+    enabled: ${OSS_ENABLED:false}
+    endpoint: ${OSS_ENDPOINT:}
+    bucket: ${OSS_BUCKET:}
+    access-key-id: ${OSS_ACCESS_KEY_ID:}
+    access-key-secret: ${OSS_ACCESS_KEY_SECRET:}
+    prefix: ${OSS_PREFIX:imgutil}

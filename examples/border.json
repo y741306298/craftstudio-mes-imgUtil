@@ -1,0 +1,8 @@
+{
+  "requestId": "demo-border-001",
+  "raster": {
+    "kind": "BORDER", "widthMm": 120, "heightMm": 80, "dpi": 150,
+    "strokeMm": 0.5, "margins": {"left": 10, "top": 10, "right": 10, "bottom": 10},
+    "dashedInsetMm": 5
+  }
+}

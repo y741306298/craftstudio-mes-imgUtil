@@ -1,0 +1,8 @@
+{
+  "requestId": "demo-mask-001",
+  "svg": {
+    "kind": "MASK", "width": 100, "height": 50,
+    "sourceImage": "production/front.png", "requirePlt": true,
+    "marks": [{"kind": "CIRCLE", "id": "buckle-top-left", "x": 5, "y": 5, "width": 8, "height": 8, "image": "basetag/point.png", "requirePlt": false}]
+  }
+}

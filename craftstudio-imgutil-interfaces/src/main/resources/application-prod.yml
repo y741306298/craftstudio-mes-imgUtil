@@ -1,0 +1,2 @@
+graphics:
+  api-key: ${GRAPHICS_API_KEY}

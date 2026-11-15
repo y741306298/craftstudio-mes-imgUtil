@@ -1,0 +1,16 @@
+{
+  "requestId": "demo-label-001",
+  "raster": {
+    "kind": "LABEL",
+    "widthMm": 100,
+    "heightMm": 20,
+    "dpi": 150,
+    "fontSizeMm": 4,
+    "fontFamily": "Noto Sans CJK SC",
+    "bold": true,
+    "foreground": "#000000",
+    "background": "transparent",
+    "lines": ["生产标签 MES-001", "第一片 / 共三片"],
+    "rotationDegrees": 180
+  }
+}

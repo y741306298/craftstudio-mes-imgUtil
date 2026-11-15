@@ -1,0 +1,11 @@
+<project xmlns="http://maven.apache.org/POM/4.0.0"><modelVersion>4.0.0</modelVersion>
+  <parent><groupId>org.example</groupId><artifactId>craftstudio-mes-imgUtil</artifactId><version>0.0.1-SNAPSHOT</version></parent>
+  <artifactId>craftstudio-imgutil-interfaces</artifactId>
+  <dependencies>
+    <dependency><groupId>org.example</groupId><artifactId>craftstudio-imgutil-application</artifactId><version>${project.version}</version></dependency>
+    <dependency><groupId>org.springframework.boot</groupId><artifactId>spring-boot-starter-webmvc</artifactId></dependency>
+    <dependency><groupId>org.springframework.boot</groupId><artifactId>spring-boot-starter-actuator</artifactId></dependency>
+    <dependency><groupId>org.springframework.boot</groupId><artifactId>spring-boot-starter-webmvc-test</artifactId><scope>test</scope></dependency>
+  </dependencies>
+  <build><plugins><plugin><groupId>org.springframework.boot</groupId><artifactId>spring-boot-maven-plugin</artifactId><configuration><mainClass>com.craftstudio.imgutil.interfaces.CraftStudioImgUtilApplication</mainClass></configuration></plugin></plugins></build>
+</project>
