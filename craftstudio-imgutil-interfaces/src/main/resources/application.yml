@@ -31,6 +31,8 @@ management:
     health:
       show-details: never
 graphics:
+  font-directory: ${GRAPHICS_FONT_DIRECTORY:}
+  required-fonts: ${GRAPHICS_REQUIRED_FONTS:}
   api-key: ${GRAPHICS_API_KEY:}
   data-directory: ${GRAPHICS_DATA_DIRECTORY:./data}
   workers: ${GRAPHICS_WORKERS:2}

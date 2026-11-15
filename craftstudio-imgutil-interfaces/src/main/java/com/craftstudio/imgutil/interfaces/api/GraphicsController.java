@@ -43,6 +43,6 @@ public class GraphicsController {
         return ApiResponse.success(Map.of("raster", RasterSpec.Kind.values(), "svg", SvgSpec.Kind.values(),
                 "maxPixels", properties.maxPixels(), "maxDimension", properties.maxDimension(), "maxDpi", properties.maxDpi(),
                 "activeTasks", tasks.activeCount(), "queuedTasks", tasks.queuedCount(),
-                "fonts", GraphicsEnvironment.getLocalGraphicsEnvironment().getAvailableFontFamilyNames()));
+                "fonts", GraphicsEnvironment.getLocalGraphicsEnvironment().getAvailableFontFamilyNames(),"mesCompatibilityVersion",1));
     }
 }

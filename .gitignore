@@ -3,4 +3,5 @@
 *.iml
 .env
 data/
+fonts/
 *.log

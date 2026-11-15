@@ -15,7 +15,7 @@
 | `GET /tasks/{taskId}/artifact` | 成功后下载文件流，PNG 或 SVG |
 | `GET /capabilities` | 操作枚举、资源限制、实际字体和工作线程情况 |
 
-`taskId` 就是请求的 `requestId`，必须匹配 `[A-Za-z0-9][A-Za-z0-9_-]{0,79}`。只提交 `raster` 或 `svg` 中的一个。
+`taskId` 就是请求的 `requestId`，必须匹配 `[A-Za-z0-9][A-Za-z0-9_-]{0,79}`。只提交 `raster`、`svg`、`mes` 中的一个。MES 专用生产图形请使用 [mes 兼容协议](mes-async-api.md)。
 
 状态为 `QUEUED → RUNNING → SUCCEEDED / FAILED / TIMED_OUT`，重启中断的任务转为 `FAILED`。客户端每隔 0.5–2 秒查询一次，设置整体截止时间；不要在 MES 的 Web 请求线程中无限等待。重复提交时必须保持参数一致；幂等保留期与任务保留期相同。
 

@@ -26,6 +26,10 @@ public class DomSvgEditor {
     private static final Set<String> ATTRIBUTES = Set.of("id", "width", "height", "viewBox", "x", "y", "x1", "y1", "x2", "y2", "cx", "cy", "r", "rx", "ry", "d", "points", "transform", "fill", "fill-rule", "fill-opacity", "stroke", "stroke-width", "stroke-dasharray", "stroke-linecap", "stroke-linejoin", "stroke-opacity", "opacity", "clip-path", "clipPathUnits", "preserveAspectRatio", "version", "img", "require-plt", "href", "font-family", "font-size", "font-weight", "text-anchor", "dominant-baseline");
     private final GraphicsProperties properties;
     public DomSvgEditor(GraphicsProperties properties) { this.properties = properties; }
+    public void validateMarkup(String source) {
+        if(source.getBytes(StandardCharsets.UTF_8).length>properties.maxRequestBytes())throw new IllegalArgumentException("SVG 文本过大");
+        checkDocument(parse(source));
+    }
 
     public void validate(SvgSpec s) {
         if (s.kind() == null) throw new IllegalArgumentException("缺少 svg.kind");

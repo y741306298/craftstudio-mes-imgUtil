@@ -8,12 +8,14 @@ import java.io.OutputStream;
 public class LocalGraphicsRenderer implements GraphicsRenderer {
     private final AwtRasterRenderer raster;
     private final DomSvgEditor svg;
-    public LocalGraphicsRenderer(AwtRasterRenderer raster, DomSvgEditor svg) { this.raster = raster; this.svg = svg; }
+    private final com.craftstudio.imgutil.infra.graphics.mes.MesCompatibilityRenderer mes;
+    public LocalGraphicsRenderer(AwtRasterRenderer raster, DomSvgEditor svg, com.craftstudio.imgutil.infra.graphics.mes.MesCompatibilityRenderer mes) { this.raster = raster; this.svg = svg; this.mes = mes; }
     @Override public void validate(GraphicsRequest request) {
         request.validate();
-        if (request.raster() != null) raster.validate(request.raster()); else svg.validate(request.svg());
+        if(request.mes()!=null)mes.validate(request.mes());
+        else if (request.raster() != null) raster.validate(request.raster()); else svg.validate(request.svg());
     }
     @Override public RenderResult render(GraphicsRequest request, OutputStream output) throws Exception {
-        return request.raster() != null ? raster.render(request.raster(), output) : svg.render(request.svg(), output);
+        return request.mes()!=null ? mes.render(request.mes(),output) : request.raster() != null ? raster.render(request.raster(), output) : svg.render(request.svg(), output);
     }
 }

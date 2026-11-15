@@ -1,6 +1,8 @@
-# MES 迁移边界
+# MES 图形兼容迁移
 
-当前服务实现了通用绘图原语及任务接口，没有修改 MES 仓库。MES 的工艺分支、订单/生产片写入、历史文件兼容和具体标签布局需要分批接入并验收。
+已从 MES 主分支 d949c7e1 提取专用绘图核函数，在图形服务执行；MES 保留工艺和业务编排。
+
+完整协议、对应操作、异步状态和部署说明见 [MES 异步接口文档](mes-async-api.md)。
 
 | MES 原实现 | 新服务能力 | 迁移注意点 |
 | --- | --- | --- |
@@ -15,7 +17,7 @@
 | SVG 插入点位/拼接标记 | svg EDIT + marks | MES 继续计算工艺点位；通用 RECT/CIRCLE/CROSS 由服务构建 |
 | SVG 删除分组、替换 img、rect 转 path | svg EDIT | 删除只匹配精确 id；圆角矩形保留，已有元数据保留 |
 
-尚未整体迁移：CircleQr/CrossQr/DoubleSideMounting 的二维码与富文本复合标签、不同设备的版面布局、工艺点位规划、刀路/PLT 输出。不得将通用 LABEL 当成这些专用布局的无差别替代。
+CircleQr/CrossQr/DoubleSideMounting 的复合标签现由专用兼容操作执行，保留原富文本和布局函数。工艺点位规划、不同设备的版面业务选择继续位于 MES；刀路/PLT 仍使用既有独立算法。通用 LABEL 不替代专用标签。
 
 推荐 MES 后续在 application 层新增 GraphicsService 调用适配器，参数仅使用纯绘图数据。后台任务保存 requestId，定期查询结果。遇到 429/503 退避；提交结果不确定时复用原编号。失败后的业务重试使用新编号。
 
