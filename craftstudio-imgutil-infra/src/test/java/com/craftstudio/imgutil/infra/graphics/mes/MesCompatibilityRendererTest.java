@@ -56,9 +56,9 @@ class MesCompatibilityRendererTest {
         String result=new String(render("BUCKLE_APPEND",Map.of("originalSvg",source,"pieceId","piece","originalContentImg","image.tif","markKeyPrefix","buckle","markPoints",List.of(Map.of("suffix","top-left","centerX",25,"centerY",25)))),java.nio.charset.StandardCharsets.UTF_8);
         assertTrue(result.contains("buckle-top-left-piece"));assertTrue(result.contains("img=\"image.tif\""));assertTrue(result.contains("translate(21 21)"));
     }
-    @Test void rejectsUnsafeSvgUnknownOperationsAndHugeCanvas()throws Exception{
+    @Test void rejectsUnsafeSvgUnknownOperationsAndInvalidDimensions()throws Exception{
         assertThrows(IllegalArgumentException.class,()->renderer.validate(new MesSpec("CLASS_FOR_NAME",Map.of())));
-        assertThrows(IllegalArgumentException.class,()->render("BLACK",Map.of("width",1000000,"height",1000000)));
+        assertThrows(IllegalArgumentException.class,()->render("BLACK",Map.of("width",0,"height",1)));
         assertThrows(IllegalArgumentException.class,()->render("SVG_SAVE",Map.of("source","<svg xmlns='http://www.w3.org/2000/svg'><script>bad</script></svg>")));
     }
 

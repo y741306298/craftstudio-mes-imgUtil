@@ -5,11 +5,9 @@ import org.springframework.stereotype.Component;
 
 @Component
 public class RenderLimits {
-    private final GraphicsProperties properties;
-    public RenderLimits(GraphicsProperties properties) { this.properties = properties; }
-    public void checkPixels(long width, long height) {
-        if (width < 1 || height < 1 || width > properties.maxDimension() || height > properties.maxDimension()
-                || width > properties.maxPixels() / height) throw new IllegalArgumentException("画布或旋转后尺寸超过像素上限");
+    public RenderLimits(GraphicsProperties properties) { }
+    public void checkDimensions(long width, long height) {
+        if (width < 1 || height < 1) throw new IllegalArgumentException("画布宽高必须大于零");
     }
     public static void finite(double value, String name) {
         if (!Double.isFinite(value)) throw new IllegalArgumentException(name + " 必须是有限数");

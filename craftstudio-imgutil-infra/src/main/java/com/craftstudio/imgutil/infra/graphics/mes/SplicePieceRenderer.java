@@ -44,7 +44,7 @@ final class SplicePieceRenderer {
             RenderLimits.checkpoint();
             Path temporary = store.createTemporary(taskId);
             try (var kernel = new SpliceRasterKernel()) {
-                kernel.configure(limits, properties.maxPixels());
+                kernel.configure(limits);
                 BufferedImage image = image(kernel, key, text);
                 try (var out = new BoundedOutput(Files.newOutputStream(temporary), properties.maxArtifactBytes() - bytes)) {
                     if (!ImageIO.write(image, "png", out)) throw new IllegalStateException("PNG 编码器不可用");

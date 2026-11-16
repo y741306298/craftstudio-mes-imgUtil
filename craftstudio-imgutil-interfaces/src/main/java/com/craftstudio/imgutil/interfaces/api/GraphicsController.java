@@ -48,7 +48,7 @@ public class GraphicsController {
     @GetMapping("/capabilities")
     public ApiResponse<Map<String, Object>> capabilities() {
         Map<String, Object> capabilities = new java.util.LinkedHashMap<>(Map.of("raster", RasterSpec.Kind.values(), "svg", SvgSpec.Kind.values(),
-                "maxPixels", properties.maxPixels(), "maxDimension", properties.maxDimension(), "maxDpi", properties.maxDpi(),
+                "pixelLimitsEnabled", false, "maxDpi", properties.maxDpi(),
                 "activeTasks", tasks.activeCount(), "queuedTasks", tasks.queuedCount(),
                 "fonts", GraphicsEnvironment.getLocalGraphicsEnvironment().getAvailableFontFamilyNames(),"mesCompatibilityVersion",1,"callbackProtocolVersion",1));
         capabilities.put("spliceMarksBatchVersion", 1);

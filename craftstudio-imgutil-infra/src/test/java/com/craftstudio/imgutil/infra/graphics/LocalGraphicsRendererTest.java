@@ -40,10 +40,11 @@ class LocalGraphicsRendererTest {
         for (int y = 0; y < image.getHeight(); y++) for (int x = 0; x < image.getWidth(); x++) if ((image.getRGB(x, y) >>> 24) != 0) occupied++;
         assertTrue(occupied > 100); assertTrue(occupied < image.getWidth() * image.getHeight());
     }
-    @Test void rejectsOversizedNonFiniteAndRotatedCanvasBeforeAllocation() {
-        assertThrows(IllegalArgumentException.class, () -> raster.validate(raster(RasterSpec.Kind.SOLID, 2000, 2000, 0, List.of())));
+    @Test void acceptsLargeCanvasAndRotationButRejectsNonFiniteDimensions() {
+        assertDoesNotThrow(() -> raster.validate(raster(RasterSpec.Kind.SOLID, 2000, 2000, 0, List.of())));
         assertThrows(IllegalArgumentException.class, () -> raster.validate(raster(RasterSpec.Kind.SOLID, Double.NaN, 1, 0, List.of())));
-        assertThrows(IllegalArgumentException.class, () -> raster.validate(raster(RasterSpec.Kind.SOLID, 800, 10, 45, List.of())));
+        assertDoesNotThrow(() -> raster.validate(raster(RasterSpec.Kind.SOLID, 800, 10, 45, List.of())));
+        assertThrows(IllegalArgumentException.class, () -> raster.validate(raster(RasterSpec.Kind.SOLID, 0, 10, 0, List.of())));
     }
     @Test void createsMaskWithEscapedMetadataAndPltFlag() throws Exception {
         var spec = new SvgSpec(SvgSpec.Kind.MASK, null, 100, 50, null, "https://example.com/a?x=1&y=2", true, false, null, null, null);

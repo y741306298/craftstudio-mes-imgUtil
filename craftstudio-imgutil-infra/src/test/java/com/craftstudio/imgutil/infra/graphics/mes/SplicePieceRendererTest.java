@@ -53,7 +53,7 @@ class SplicePieceRendererTest {
         assertEquals(8,result.assets().size()); assertEquals(8,published.size());
         for (var entry : published.entrySet()) {
             try (var kernel = new SpliceRasterKernel()) {
-                kernel.configure(limits,properties.maxPixels());
+                kernel.configure(limits);
                 String key = entry.getKey();
                 BufferedImage expected;
                 if (key.startsWith("dark-")) expected = kernel.createStripeImage(key.endsWith("vertical")?1:6,key.endsWith("vertical")?6:1,Color.BLACK);

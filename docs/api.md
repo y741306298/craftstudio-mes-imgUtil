@@ -50,6 +50,8 @@
 
 时间为 Unix 毫秒，PNG 宽高单位为像素，SVG 为 MES 使用的毫米坐标。`objectName` 仅在启用 OSS 时返回。下载地址是服务自身的相对路径，鉴权方式相同；建议 MES 使用 OSS 对象名接续现有业务。
 
+画布单边尺寸、总像素及累计画布像素校验已移除，PNG 绘制、解码和旋转均不再受 max-dimension/max-pixels 限制；capabilities 返回 pixelLimitsEnabled=false。宽高正数、有限数值、DPI、文件大小和任务队列等校验继续生效。
+
 ## raster 参数
 
 | 字段 | 说明 |
@@ -95,7 +97,7 @@ EDIT 只接收标准 SVG 命名空间，根节点必须有数值宽高（可带 
 
 | HTTP / 错误码 | 客户端处理 |
 | --- | --- |
-| 400 INVALID_REQUEST | 修正尺寸、JSON 或 SVG |
+| 400 INVALID_REQUEST | 修正非正数/非法尺寸、JSON 或 SVG |
 | 401 UNAUTHORIZED | 检查服务端 API Key 配置 |
 | 404 TASK_NOT_FOUND / ARTIFACT_EXPIRED | 查询保留期；必要时新编号重新生成 |
 | 409 IDEMPOTENCY_CONFLICT | 相同编号已绑定不同参数；使用新编号 |
