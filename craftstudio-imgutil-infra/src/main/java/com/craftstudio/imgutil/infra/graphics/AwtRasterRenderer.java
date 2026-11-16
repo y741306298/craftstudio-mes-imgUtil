@@ -40,8 +40,8 @@ public class AwtRasterRenderer {
         if (spec.lines().size() > 32 || spec.lines().stream().anyMatch(s -> s.length() > 2048)) throw new IllegalArgumentException("标签文字过长");
         if (spec.kind() == RasterSpec.Kind.LABEL && spec.lines().isEmpty()) throw new IllegalArgumentException("文字标签缺少 lines");
         if (spec.fontFamily().length() > 100) throw new IllegalArgumentException("字体名称过长");
-        int[] size = size(spec); limits.checkPixels(size[0], size[1]);
-        int[] rotated = rotatedSize(size[0], size[1], spec.rotationDegrees()); limits.checkPixels(rotated[0], rotated[1]);
+        int[] size = size(spec); limits.checkDimensions(size[0], size[1]);
+        int[] rotated = rotatedSize(size[0], size[1], spec.rotationDegrees()); limits.checkDimensions(rotated[0], rotated[1]);
         if (spec.kind() == RasterSpec.Kind.BORDER && (spec.margins().left() + spec.margins().right() >= spec.widthMm()
                 || spec.margins().top() + spec.margins().bottom() >= spec.heightMm())) throw new IllegalArgumentException("内框边距超过画布");
     }

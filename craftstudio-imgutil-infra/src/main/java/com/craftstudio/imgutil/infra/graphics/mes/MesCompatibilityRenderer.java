@@ -53,7 +53,7 @@ public class MesCompatibilityRenderer {
             case "LIUBAI_BORDER","LIUBAI_TAG" -> new LiubaiRasterKernel(p);
             default -> new LegacySupport(){};
         };
-        kernel.configure(limits,properties.maxPixels());
+        kernel.configure(limits);
         try(kernel) {
             BufferedImage image=switch(spec.operation()) {
                 case "CIRCLE_TAG" -> ((CircleQrLayoutBuildServiceKernel)kernel).render(p.text("businessId"),p.text("manufacturerMetaId"),p.text("typesettingId"),p.text("elementA"),p.strings("elementAExtInfos"),p.text("commonOrderId"),p.text("elementB"),p.text("qrDataUri"),decimal(p,"stripWidth"),BigDecimal.valueOf(p.number("tagContentMaxWidth",p.number("stripWidth",1))),decimal(p,"stripHeight"),p.bool("rotate180",false),p.bool("hasRedoProductionPiece",false));

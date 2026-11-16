@@ -20,8 +20,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 @SpringBootTest(properties={"graphics.callback-dispatch-ms=50", "graphics.workers=1", "graphics.queue-capacity=16",
-        "graphics.task-timeout-seconds=30", "graphics.retention-hours=24", "graphics.max-dimension=8192",
-        "graphics.max-pixels=8000000", "graphics.max-dpi=600", "graphics.max-request-bytes=1048576",
+        "graphics.task-timeout-seconds=30", "graphics.retention-hours=24", "graphics.max-dpi=600", "graphics.max-request-bytes=1048576",
         "graphics.max-artifact-bytes=33554432", "graphics.max-svg-nodes=20000", "graphics.max-svg-depth=64",
         "graphics.max-storage-bytes=2147483648"})
 @AutoConfigureMockMvc
@@ -91,6 +90,8 @@ class SplicePieceApiTest {
         mvc.perform(post("/api/graphics/tasks").header("X-Api-Key",KEY).contentType("application/json").content(request))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.data.artifact.assets.dark-horizontal").exists());
         assertEquals(9,OBJECTS.size());assertEquals(1,CALLBACKS.get());
-        mvc.perform(get("/api/graphics/capabilities").header("X-Api-Key",KEY)).andExpect(jsonPath("$.data.splicePieceVersion").value(1));
+        mvc.perform(get("/api/graphics/capabilities").header("X-Api-Key",KEY)).andExpect(jsonPath("$.data.splicePieceVersion").value(1))
+                .andExpect(jsonPath("$.data.pixelLimitsEnabled").value(false))
+                .andExpect(jsonPath("$.data.maxDimension").doesNotExist()).andExpect(jsonPath("$.data.maxPixels").doesNotExist());
     }
 }

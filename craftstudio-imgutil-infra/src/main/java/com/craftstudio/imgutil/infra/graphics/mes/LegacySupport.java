@@ -6,16 +6,13 @@ import java.io.*;
 import java.util.*;
 import javax.imageio.ImageIO;
 
-/** Every legacy allocation is checked and released within one isolated task. */
+/** Validate dimensions and release legacy image allocations within one isolated task. */
 public abstract class LegacySupport implements AutoCloseable {
     private final List<BufferedImage> allocated = new ArrayList<>();
     private RenderLimits limits;
-    private long pixels, maximum;
-    public void configure(RenderLimits limits, long maximum) { this.limits=limits;this.maximum=maximum; }
+    public void configure(RenderLimits limits) { this.limits=limits; }
     protected BufferedImage canvas(int width, int height, int type) {
-        limits.checkPixels(width,height);
-        pixels += (long)width*height;
-        if(pixels>maximum*4) throw new IllegalArgumentException("任务累计画布超过内存预算");
+        limits.checkDimensions(width,height);
         BufferedImage image=new BufferedImage(width,height,type);allocated.add(image);return image;
     }
     public BufferedImage decodeDataUri(String uri) {
@@ -36,8 +33,7 @@ public abstract class LegacySupport implements AutoCloseable {
             var readers=ImageIO.getImageReaders(input); if(!readers.hasNext())throw new IllegalArgumentException("无效 PNG");
             var reader=readers.next();
             try {
-                reader.setInput(input);int w=reader.getWidth(0),h=reader.getHeight(0);limits.checkPixels(w,h);
-                pixels+=(long)w*h;if(pixels>maximum*4)throw new IllegalArgumentException("图片解码预算超限");
+                reader.setInput(input);int w=reader.getWidth(0),h=reader.getHeight(0);limits.checkDimensions(w,h);
                 BufferedImage image=reader.read(0);allocated.add(image);return image;
             } finally { reader.dispose(); }
         } catch(IOException e){throw new IllegalArgumentException("PNG 解码失败",e);}
@@ -45,7 +41,7 @@ public abstract class LegacySupport implements AutoCloseable {
     public BufferedImage readPng(java.nio.file.Path path) throws IOException {
         try(var input=ImageIO.createImageInputStream(path.toFile())) {
             var reader=ImageIO.getImageReaders(input).next();
-            try { reader.setInput(input);limits.checkPixels(reader.getWidth(0),reader.getHeight(0));var image=reader.read(0);allocated.add(image);return image; }
+            try { reader.setInput(input);limits.checkDimensions(reader.getWidth(0),reader.getHeight(0));var image=reader.read(0);allocated.add(image);return image; }
             finally {reader.dispose();}
         }
     }
