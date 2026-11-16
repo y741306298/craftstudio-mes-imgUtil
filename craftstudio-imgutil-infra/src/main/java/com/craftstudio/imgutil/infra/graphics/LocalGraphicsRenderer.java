@@ -16,6 +16,6 @@ public class LocalGraphicsRenderer implements GraphicsRenderer {
         else if (request.raster() != null) raster.validate(request.raster()); else svg.validate(request.svg());
     }
     @Override public RenderResult render(GraphicsRequest request, OutputStream output) throws Exception {
-        return request.mes()!=null ? mes.render(request.mes(),output) : request.raster() != null ? raster.render(request.raster(), output) : svg.render(request.svg(), output);
+        return request.mes()!=null ? mes.render(request.requestId(),request.mes(),output) : request.raster() != null ? raster.render(request.raster(), output) : svg.render(request.svg(), output);
     }
 }

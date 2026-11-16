@@ -26,7 +26,7 @@ public class MesCompatibilityRenderer {
     }
     public void validate(MesSpec spec) {
         if(spec.operation()==null)throw new IllegalArgumentException("缺少 MES 图形操作名");
-        if(!PNG.contains(spec.operation()) && !svg.supports(spec.operation()))throw new IllegalArgumentException("未知 MES 图形操作");
+        if(!PNG.contains(spec.operation()) && !svg.supports(spec.operation()) && !"SPLICE_PIECE".equals(spec.operation()))throw new IllegalArgumentException("未知 MES 图形操作");
         if(spec.parameters().size()>80)throw new IllegalArgumentException("参数过多");
         Params p=new Params(spec.parameters());
         for(String key: new String[]{"width","height","stripWidth","stripHeight","edgeSize"}) {
@@ -34,7 +34,13 @@ public class MesCompatibilityRenderer {
         }
     }
     public RenderResult render(MesSpec spec,OutputStream output)throws Exception {
+        return render(null, spec, output);
+    }
+    public RenderResult render(String taskId, MesSpec spec, OutputStream output) throws Exception {
         validate(spec);RenderLimits.checkpoint();
+        if ("SPLICE_PIECE".equals(spec.operation())) {
+            return new SplicePieceRenderer(limits, properties, artifacts, svg).render(taskId, spec.parameters(), output);
+        }
         if(svg.supports(spec.operation()))return svg.render(spec,output);
         Params p=new Params(spec.parameters());
         LegacySupport kernel=switch(spec.operation()) {

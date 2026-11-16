@@ -52,6 +52,7 @@ public class GraphicsController {
                 "activeTasks", tasks.activeCount(), "queuedTasks", tasks.queuedCount(),
                 "fonts", GraphicsEnvironment.getLocalGraphicsEnvironment().getAvailableFontFamilyNames(),"mesCompatibilityVersion",1,"callbackProtocolVersion",1));
         capabilities.put("spliceMarksBatchVersion", 1);
+        capabilities.put("splicePieceVersion", 1);
         return ApiResponse.success(capabilities);
     }
 }

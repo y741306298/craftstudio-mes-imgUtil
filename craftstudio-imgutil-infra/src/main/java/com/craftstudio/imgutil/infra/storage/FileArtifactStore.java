@@ -31,8 +31,14 @@ public class FileArtifactStore implements ArtifactStore {
     }
     @Override public Path createTemporary(String id) throws Exception { validate(id); return Files.createTempFile(temporary, id + "-", ".part"); }
     @Override public Artifact publish(String id, Path source, RenderResult result) throws Exception {
+        return publishFile(id, "result." + result.extension(), source, result);
+    }
+    @Override public Artifact publishNamed(String id, String name, Path source, RenderResult result) throws Exception {
+        if (!name.matches("[a-z][a-z-]{0,39}") || !result.extension().equals("png")) throw new IllegalArgumentException("零件素材名无效");
+        return publishFile(id, name + ".png", source, result);
+    }
+    private Artifact publishFile(String id, String filename, Path source, RenderResult result) throws Exception {
         validate(id);
-        String filename = "result." + result.extension();
         Path directory = artifacts.resolve(id); Files.createDirectories(directory);
         Path target = directory.resolve(filename); Files.move(source, target, StandardCopyOption.REPLACE_EXISTING);
         MessageDigest digest = MessageDigest.getInstance("SHA-256");
@@ -44,7 +50,8 @@ public class FileArtifactStore implements ArtifactStore {
             try (var input = Files.newInputStream(target)) { oss.putObject(properties.oss().bucket(), objectName, input, metadata); }
         }
         return new Artifact(filename, result.mediaType(), Files.size(target), HexFormat.of().formatHex(digest.digest()),
-                result.width(), result.height(), result.unit(), "/api/graphics/tasks/" + id + "/artifact", objectName);
+                result.width(), result.height(), result.unit(), filename.startsWith("result.") ? "/api/graphics/tasks/" + id + "/artifact" : null,
+                objectName, result.assets());
     }
     @Override public Path resolve(String id, String filename) {
         validate(id);
