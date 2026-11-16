@@ -22,7 +22,7 @@ class GraphicsApiTest {
         registry.add("graphics.max-request-bytes", () -> 4096);
     }
     @Autowired MockMvc mvc;
-    @Test void acceptsCallbackConfigAndActivelyDeliversSignedResult() throws Exception {
+    @Test void completesWholeSpliceBatchAndActivelyDeliversSignedResult() throws Exception {
         var received=new java.util.concurrent.CountDownLatch(1);
         var body=new java.util.concurrent.atomic.AtomicReference<byte[]>();
         var signature=new java.util.concurrent.atomic.AtomicReference<String>();
@@ -30,7 +30,17 @@ class GraphicsApiTest {
         callback.createContext("/complete",exchange->{body.set(exchange.getRequestBody().readAllBytes());signature.set(exchange.getRequestHeaders().getFirst("X-Graphics-Signature"));exchange.sendResponseHeaders(200,-1);exchange.close();received.countDown();});callback.start();
         try{
             String request="""
-                {"requestId":"callback-http","mes":{"operation":"BLACK","parameters":{"width":8,"height":3}},
+                {"requestId":"callback-http","mes":{"operation":"SPLICE_MARKS_APPEND","parameters":{
+                   "originalSvg":"<svg xmlns='http://www.w3.org/2000/svg' width='100' height='200'><rect width='100' height='200'/></svg>",
+                   "pieceMongoId":"piece", "originalContentImg":"image.tif",
+                   "marks":[
+                     {"id":"stripe-a","img":"stripe.png","x":0,"y":180,"width":6,"height":1},
+                     {"id":"stripe-b","img":"stripe.png","x":94,"y":180,"width":6,"height":1},
+                     {"id":"gray-a","img":"gray.png","x":0,"y":184,"width":40,"height":8},
+                     {"id":"gray-b","img":"gray.png","x":60,"y":184,"width":40,"height":8},
+                     {"id":"yellow-a","img":"yellow.png","x":0,"y":192,"width":40,"height":8},
+                     {"id":"yellow-b","img":"yellow.png","x":60,"y":192,"width":40,"height":8}
+                   ]}},
                  "callbackConfig":{"callbackUrl":"http://127.0.0.1:%d/complete","callbackCustomValue":{"workflowId":"workflow","taskId":"callback-http"}}}
                 """.formatted(callback.getAddress().getPort());
             mvc.perform(post("/api/graphics/tasks").header("X-Api-Key","test-api-key").header("X-Fc-Invocation-Type","Async").contentType("application/json").content(request))
@@ -41,12 +51,20 @@ class GraphicsApiTest {
             String result=new String(body.get(),java.nio.charset.StandardCharsets.UTF_8);
             org.junit.jupiter.api.Assertions.assertTrue(result.contains("\"status\":\"success\""));
             org.junit.jupiter.api.Assertions.assertTrue(result.contains("\"workflowId\":\"workflow\""));
+            String svg = mvc.perform(get("/api/graphics/tasks/callback-http/artifact").header("X-Api-Key", "test-api-key"))
+                    .andExpect(status().isOk()).andExpect(content().contentType("image/svg+xml"))
+                    .andReturn().getResponse().getContentAsString();
+            for (String id : java.util.List.of("stripe-a", "stripe-b", "gray-a", "gray-b", "yellow-a", "yellow-b")) {
+                org.junit.jupiter.api.Assertions.assertTrue(svg.contains("id=\"" + id + "\""));
+            }
+            org.junit.jupiter.api.Assertions.assertTrue(svg.contains("require-plt=\"true\""));
         }finally{callback.stop(0);}
     }
     @Test void requiresAuthenticationAndCapsRequestBody() throws Exception {
         mvc.perform(get("/api/graphics/capabilities")).andExpect(status().isUnauthorized());
         mvc.perform(get("/api/graphics/capabilities").header("X-Api-Key", "test-api-key"))
-                .andExpect(status().isOk()).andExpect(jsonPath("$.data.maxPixels").value(8000000));
+                .andExpect(status().isOk()).andExpect(jsonPath("$.data.maxPixels").value(8000000))
+                .andExpect(jsonPath("$.data.spliceMarksBatchVersion").value(1));
         mvc.perform(post("/api/graphics/tasks").header("X-Api-Key", "test-api-key").contentType("application/json").content("x".repeat(5000)))
                 .andExpect(status().isPayloadTooLarge());
         mvc.perform(get("/actuator/health")).andExpect(status().isOk());

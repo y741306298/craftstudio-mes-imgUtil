@@ -18,6 +18,8 @@
 
 `taskId` 就是请求的 `requestId`，必须匹配 `[A-Za-z0-9][A-Za-z0-9_-]{0,79}`。只提交 `raster`、`svg`、`mes` 中的一个。MES 专用生产图形请使用 [mes 兼容协议](mes-async-api.md)。
 
+拼接零件的全部 SVG 标记支持一次 `SPLICE_MARKS_APPEND` 任务完成构建、合并和上传，capabilities 中 `spliceMarksBatchVersion=1` 表示支持。参数示例及上线顺序见 [MES 异步接口文档](mes-async-api.md)。
+
 生产 MES 使用主动回调：在同一请求增加 `callbackConfig: {callbackUrl, callbackCustomValue}`。图形服务完成后签名 POST 最终结果；成功或失败都回调，投递失败最多重试10次并持久化状态。MES 回调格式和验签规则见 [异步接口文档](mes-async-api.md)。以下 GET 查询说明用于人工排障或未配置回调的独立调用方。
 
 状态为 `QUEUED → RUNNING → SUCCEEDED / FAILED / TIMED_OUT`，重启中断的任务转为 `FAILED`。客户端每隔 0.5–2 秒查询一次，设置整体截止时间；不要在 MES 的 Web 请求线程中无限等待。重复提交时必须保持参数一致；幂等保留期与任务保留期相同。

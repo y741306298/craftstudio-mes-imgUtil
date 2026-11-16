@@ -61,4 +61,38 @@ class MesCompatibilityRendererTest {
         assertThrows(IllegalArgumentException.class,()->render("BLACK",Map.of("width",1000000,"height",1000000)));
         assertThrows(IllegalArgumentException.class,()->render("SVG_SAVE",Map.of("source","<svg xmlns='http://www.w3.org/2000/svg'><script>bad</script></svg>")));
     }
+
+    @Test void batchedSpliceMarksMatchLegacyOutputAndKeepOriginalMetadata() throws Exception {
+        var marks = List.of(
+                Map.<String,Object>of("id", "stripe-a", "img", "https://bucket/stripe.png?x=1&y=2", "x", 0.007049, "y", 1169.919444, "width", 6, "height", 1),
+                Map.<String,Object>of("id", "text-b", "img", "https://bucket/text.png", "x", 1543.494444, "y", 1181.919444, "width", 56, "height", 8));
+        String fragments = "\n";
+        for (var mark : marks) fragments += new String(render("SVG_RECT_GROUP", mark), java.nio.charset.StandardCharsets.UTF_8);
+        for (String inner : List.of("<rect x='0' y='0' width='100' height='50'/>",
+                "<g id='original' img='image.tif' require-plt='true' data-forme='true'><path d='M0 0 H100 V50 H0 Z'/></g>")) {
+            String source = "<svg xmlns='http://www.w3.org/2000/svg' width='140' height='90' viewBox='-20 -20 140 90'>" + inner + "</svg>";
+            var params = new HashMap<String,Object>(Map.of("originalSvg", source, "pieceMongoId", "piece", "originalContentImg", "image.tif"));
+            params.put("marksSvg", fragments);
+            byte[] legacy = render("SPLICE_APPEND", params);
+            params.remove("marksSvg"); params.put("marks", marks);
+            byte[] batch = render("SPLICE_MARKS_APPEND", params);
+            assertArrayEquals(legacy, batch);
+            String svg = new String(batch, java.nio.charset.StandardCharsets.UTF_8);
+            assertTrue(svg.contains("require-plt=\"false\""));
+            assertTrue(svg.contains("data-source-name=\"stripe.png\""));
+            assertTrue(svg.contains("viewBox='-20 -20 140 90'"));
+        }
+    }
+
+    @Test void rejectsInvalidSpliceBatchesAsAWhole() {
+        var valid = Map.<String,Object>of("id", "mark", "img", "stripe.png", "x", 0, "y", 0, "width", 6, "height", 1);
+        var badSize = new HashMap<>(valid); badSize.put("width", -1);
+        var badCoordinate = new HashMap<>(valid); badCoordinate.put("x", Double.NaN);
+        var unsafe = new HashMap<>(valid); unsafe.put("img", "javascript:bad");
+        for (var marks : List.of(List.of(), Collections.nCopies(33, valid), List.of(valid, valid),
+                List.of(valid, badSize), List.of(badCoordinate), List.of(unsafe))) {
+            assertThrows(IllegalArgumentException.class, () -> render("SPLICE_MARKS_APPEND", Map.of(
+                    "originalSvg", "<svg xmlns='http://www.w3.org/2000/svg' width='100' height='50'></svg>", "marks", marks)));
+        }
+    }
 }

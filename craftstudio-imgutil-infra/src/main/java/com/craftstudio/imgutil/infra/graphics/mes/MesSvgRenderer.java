@@ -10,7 +10,7 @@ import java.util.regex.*;
 
 @Component
 public class MesSvgRenderer {
-    private static final Set<String> OPS=Set.of("SVG_SAVE","SVG_MASK","LIUBAI_EXPAND","LIUBAI_GROUPS","BUCKLE_APPEND","SPLICE_APPEND","SUB_OPEN","SUB_ORIGINAL","SUB_BACK","SUB_POINT","SUB_BORDER","SUB_CLEAN","SVG_RESIZE","SVG_RECT_GROUP","NESTING_MARKER_SVG","SVG_REMOVE_SPLICE","SVG_REDO_ID");
+    private static final Set<String> OPS=Set.of("SVG_SAVE","SVG_MASK","LIUBAI_EXPAND","LIUBAI_GROUPS","BUCKLE_APPEND","SPLICE_APPEND","SPLICE_MARKS_APPEND","SUB_OPEN","SUB_ORIGINAL","SUB_BACK","SUB_POINT","SUB_BORDER","SUB_CLEAN","SVG_RESIZE","SVG_RECT_GROUP","NESTING_MARKER_SVG","SVG_REMOVE_SPLICE","SVG_REDO_ID");
     private final DomSvgEditor guard;
     public MesSvgRenderer(DomSvgEditor guard){this.guard=guard;}
     public boolean supports(String operation){return operation!=null && OPS.contains(operation);}
@@ -36,6 +36,8 @@ public class MesSvgRenderer {
                 var points=((List<Map<String,Object>>)p.values.getOrDefault("markPoints",List.of())).stream().map(v->{Params t=new Params(v);return new BuckleSvgKernel.BuckleMarkPoint(t.text("suffix"),t.number("centerX",0),t.number("centerY",0));}).toList();
                 yield new BuckleSvgKernel(p).appendBuckleMarks(p.text("originalSvg"),p.text("pieceId"),p.text("originalContentImg"),points);
             }
+            case "SPLICE_MARKS_APPEND" -> new SpliceSvgKernel().appendMarksSvg(p.text("originalSvg"),
+                    p.text("pieceMongoId"), p.text("originalContentImg"), rectMarks(p));
             case "SPLICE_APPEND" -> new SpliceSvgKernel().appendMarksSvg(p.text("originalSvg"),p.text("pieceMongoId"),p.text("originalContentImg"),p.text("marksSvg"));
             case "SUB_OPEN" -> SublimationSvg.open(p.number("width",1),p.number("height",1));
             case "SUB_ORIGINAL" -> SublimationSvg.original(p.text("id"),p.text("imageUrl"),p.number("width",1),p.number("height",1));
@@ -68,6 +70,34 @@ public class MesSvgRenderer {
         }
         return source.substring(0,root.start())+tag+source.substring(root.end());
     }
+    /** Same per-mark renderer as SVG_RECT_GROUP, with one bounded task for the whole piece. */
+    private String rectMarks(Params p) throws InterruptedException {
+        if (!(p.values.get("marks") instanceof List<?> marks) || marks.isEmpty() || marks.size() > 32) {
+            throw new IllegalArgumentException("拼接标记数量必须为 1 到 32");
+        }
+        StringBuilder result = new StringBuilder("\n");
+        Set<String> ids = new HashSet<>();
+        for (Object value : marks) {
+            com.craftstudio.imgutil.infra.graphics.RenderLimits.checkpoint();
+            if (!(value instanceof Map<?, ?> raw)) throw new IllegalArgumentException("拼接标记参数无效");
+            Map<String, Object> values = new LinkedHashMap<>();
+            raw.forEach((key, item) -> values.put(key.toString(), item));
+            Params mark = new Params(values);
+            if (mark.text("id").isBlank() || !ids.add(mark.text("id")) || mark.text("img").isBlank()) {
+                throw new IllegalArgumentException("拼接标记 id 或图片无效，id 不可重复");
+            }
+            for (String key : List.of("x", "y", "width", "height")) {
+                if (!values.containsKey(key)) throw new IllegalArgumentException("拼接标记缺少参数: " + key);
+                double number = mark.number(key, 0);
+                if ((key.equals("width") || key.equals("height")) && number <= 0) {
+                    throw new IllegalArgumentException("拼接标记尺寸必须大于零");
+                }
+            }
+            result.append(rectGroup(mark));
+        }
+        return result.toString();
+    }
+
     private String rectGroup(Params p){
         String img=p.text("img"), path=img.split("\\?",2)[0];String name=path.substring(path.lastIndexOf('/')+1);
         double x=p.number("x",0),y=p.number("y",0),w=p.number("width",1),h=p.number("height",1);
