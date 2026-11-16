@@ -19,8 +19,8 @@
 
 CircleQr/CrossQr/DoubleSideMounting 的复合标签现由专用兼容操作执行，保留原富文本和布局函数。工艺点位规划、不同设备的版面业务选择继续位于 MES；刀路/PLT 仍使用既有独立算法。通用 LABEL 不替代专用标签。
 
-推荐 MES 后续在 application 层新增 GraphicsService 调用适配器，参数仅使用纯绘图数据。后台任务保存 requestId，定期查询结果。遇到 429/503 退避；提交结果不确定时复用原编号。失败后的业务重试使用新编号。
+MES application 层已由 ImgUtilClient 组装纯绘图参数，并统一交给 AlgorithmCoreApiService.generateGraphicsAsync 提交，记录调用和 workflowId。请求携带 callbackConfig；图形服务主动回调，MES 幂等保存结果并通过 Redis 通知对应后台工作线程继续处理，不再查询图形任务状态。详情见异步接口文档。
 
-先迁移纯色图和简单条纹，再迁移标签与边框，最后迁移 SVG 组合。每一类用实际生产样本比较尺寸、DPI、透明度、文字字体、旋转方向和 require-plt/img 元数据后，再切换对应 MES 调用点。
+上线前按纯色图/条纹、标签/边框、SVG 组合逐类使用实际生产样本比较尺寸、DPI、透明度、文字字体、旋转方向和 require-plt/img 元数据；升级顺序及旧工作流处理见异步接口文档。
 
 本地缓存保留 24 小时，不应被业务当成永久图片地址。建议生产环境开启 OSS，将 objectName 写入 MES；配置与生产文件保留策略一致的 OSS 生命周期。

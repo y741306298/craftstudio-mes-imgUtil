@@ -18,7 +18,8 @@ import java.util.Map;
 public class GraphicsController {
     private final AppGraphicsTaskService tasks;
     private final GraphicsProperties properties;
-    public GraphicsController(AppGraphicsTaskService tasks, GraphicsProperties properties) { this.tasks = tasks; this.properties = properties; }
+    private final CallbackRepository callbacks;
+    public GraphicsController(AppGraphicsTaskService tasks, GraphicsProperties properties, CallbackRepository callbacks) { this.tasks = tasks; this.properties = properties;this.callbacks=callbacks; }
     public record JobView(String taskId, JobStatus status, long createdAt, long updatedAt, Artifact artifact, String errorCode, String message) {
         static JobView of(GraphicsJob job) { return new JobView(job.taskId(), job.status(), job.createdAt(), job.updatedAt(), job.artifact(), job.errorCode(), job.message()); }
     }
@@ -30,6 +31,12 @@ public class GraphicsController {
     }
     @GetMapping("/tasks/{taskId}")
     public ApiResponse<JobView> find(@PathVariable String taskId) { return ApiResponse.success(JobView.of(tasks.find(taskId))); }
+    @GetMapping("/tasks/{taskId}/callback")
+    public ApiResponse<Map<String,Object>> callback(@PathVariable String taskId){
+        tasks.find(taskId);
+        return callbacks.find(taskId).map(d->ApiResponse.<Map<String,Object>>success(Map.of("status",d.status(),"attempts",d.attempts(),"nextAttemptAt",d.nextAttemptAt(),"lastError",d.lastError()==null?"":d.lastError())))
+                .orElseGet(()->ApiResponse.success(Map.of("status","NOT_CONFIGURED")));
+    }
     @GetMapping("/tasks/{taskId}/artifact")
     public ResponseEntity<FileSystemResource> artifact(@PathVariable String taskId) throws Exception {
         Path path = tasks.artifact(taskId); Artifact artifact = tasks.find(taskId).artifact();
@@ -43,6 +50,6 @@ public class GraphicsController {
         return ApiResponse.success(Map.of("raster", RasterSpec.Kind.values(), "svg", SvgSpec.Kind.values(),
                 "maxPixels", properties.maxPixels(), "maxDimension", properties.maxDimension(), "maxDpi", properties.maxDpi(),
                 "activeTasks", tasks.activeCount(), "queuedTasks", tasks.queuedCount(),
-                "fonts", GraphicsEnvironment.getLocalGraphicsEnvironment().getAvailableFontFamilyNames(),"mesCompatibilityVersion",1));
+                "fonts", GraphicsEnvironment.getLocalGraphicsEnvironment().getAvailableFontFamilyNames(),"mesCompatibilityVersion",1,"callbackProtocolVersion",1));
     }
 }

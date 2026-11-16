@@ -53,6 +53,8 @@ docker compose up -d --build
 
 服务已增加 `mes` 兼容操作，承载圆形/十字二维码标签、双面裱贴、裁赋开背、留白、多色工艺标签、拼接标记及热升华 SVG 规则。MES 对应改动通过持久化后台工作流调用这些操作，具体协议、上线顺序和字体要求见 [MES 异步接入文档](docs/mes-async-api.md)。
 
+MES 调用现已统一到 `AlgorithmCoreApiService`：POST 携带 `callbackConfig`，HTTP 202 后由图形服务主动回调最终结果，不再轮询任务状态。回调包含 HMAC-SHA256 签名，投递失败持久化退避重试，最多10次。`callbackProtocolVersion=1` 可在 capabilities 查询；未配置回调的手动任务仍可通过 GET 查询。
+
 ## 接口和示例
 
 所有 `/api/**` 接口使用 `X-Api-Key` 请求头（启用鉴权时）。健康检查为 `GET /actuator/health`。

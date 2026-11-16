@@ -24,13 +24,20 @@ public class AppGraphicsTaskService {
     private final ArtifactStore artifacts;
     private final GraphicsRenderer renderer;
     private final GraphicsProperties properties;
+    private final CallbackRepository callbacks;
     private final JsonMapper canonicalMapper = JsonMapper.builder().enable(tools.jackson.databind.SerializationFeature.ORDER_MAP_ENTRIES_BY_KEYS).build();
     private final Set<String> executing = new HashSet<>();
     private final ThreadPoolExecutor executor;
     private final ScheduledThreadPoolExecutor timer = new ScheduledThreadPoolExecutor(1);
 
     public AppGraphicsTaskService(JobRepository jobs, ArtifactStore artifacts, GraphicsRenderer renderer, GraphicsProperties properties, JsonMapper mapper) {
+        this(jobs,artifacts,renderer,properties,mapper,null);
+    }
+
+    @org.springframework.beans.factory.annotation.Autowired
+    public AppGraphicsTaskService(JobRepository jobs, ArtifactStore artifacts, GraphicsRenderer renderer, GraphicsProperties properties, JsonMapper mapper, CallbackRepository callbacks) {
         this.jobs = jobs; this.artifacts = artifacts; this.renderer = renderer; this.properties = properties;
+        this.callbacks=callbacks;
         jobs.forEach(job -> {
             if (!job.status().terminal()) {
                 jobs.save(job.transition(JobStatus.FAILED, null, "SERVICE_RESTARTED", "服务重启中断了任务，请使用新的 requestId 重试"));
@@ -44,6 +51,7 @@ public class AppGraphicsTaskService {
 
     public synchronized GraphicsJob submit(GraphicsRequest request) {
         request.validate();
+        if(request.callbackConfig()!=null && (callbacks==null || properties.apiKey()==null || properties.apiKey().isBlank()))throw new IllegalArgumentException("配置 API Key 后才可使用异步回调");
         String fingerprint = fingerprint(request);
         var existing = jobs.find(request.requestId());
         if (existing.isPresent()) {
@@ -55,8 +63,12 @@ public class AppGraphicsTaskService {
         long now = System.currentTimeMillis();
         GraphicsJob job = new GraphicsJob(request.requestId(), fingerprint, JobStatus.QUEUED, now, now, null, null, null);
         jobs.save(job);
-        try { executor.execute(() -> execute(request)); }
-        catch (RejectedExecutionException e) { jobs.delete(job.taskId()); throw new TaskException(429, "QUEUE_FULL", "图形任务队列已满，请稍后重试"); }
+        try {
+            if(request.callbackConfig()!=null)callbacks.register(job.taskId(),request.callbackConfig());
+            executor.execute(() -> execute(request));
+        }
+        catch (RejectedExecutionException e) { jobs.delete(job.taskId());if(callbacks!=null)callbacks.delete(job.taskId());throw new TaskException(429, "QUEUE_FULL", "图形任务队列已满，请稍后重试"); }
+        catch (RuntimeException e) { jobs.delete(job.taskId());if(callbacks!=null)callbacks.delete(job.taskId());throw e; }
         return job;
     }
     public GraphicsJob find(String id) { return jobs.find(id).orElseThrow(() -> new TaskException(404, "TASK_NOT_FOUND", "任务不存在或已过期")); }
@@ -110,15 +122,17 @@ public class AppGraphicsTaskService {
     private String fingerprint(GraphicsRequest request) {
         try {
             // JSON object key order must not change idempotency semantics.
-            return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(canonicalMapper.writeValueAsBytes(request)));
+            Object identity=request.callbackConfig()==null?new LegacyRequest(request.requestId(),request.raster(),request.svg(),request.mes()):request;
+            return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(canonicalMapper.writeValueAsBytes(identity)));
         } catch (Exception e) { throw new IllegalArgumentException("请求无法序列化", e); }
     }
+    private record LegacyRequest(String requestId,RasterSpec raster,SvgSpec svg,MesSpec mes){}
     @Scheduled(fixedDelayString = "${graphics.cleanup-interval-ms:600000}")
     public synchronized void cleanupExpired() {
         long cutoff = System.currentTimeMillis() - TimeUnit.HOURS.toMillis(properties.retentionHours());
         jobs.forEach(job -> {
             if (job.status().terminal() && job.updatedAt() < cutoff && !executing.contains(job.taskId())) {
-                try { artifacts.delete(job.taskId()); jobs.delete(job.taskId()); }
+                try { artifacts.delete(job.taskId()); jobs.delete(job.taskId());if(callbacks!=null)callbacks.delete(job.taskId()); }
                 catch (Exception e) { log.warn("清理过期任务失败: {}", job.taskId(), e); }
             }
         });

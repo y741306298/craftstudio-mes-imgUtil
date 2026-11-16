@@ -13,9 +13,12 @@
 | `POST /tasks` | 提交或幂等查询任务，未完成返回 202，已完成返回 200 |
 | `GET /tasks/{taskId}` | 查询状态与文件描述 |
 | `GET /tasks/{taskId}/artifact` | 成功后下载文件流，PNG 或 SVG |
+| `GET /tasks/{taskId}/callback` | 查看回调投递状态、次数、下一次时间及错误 |
 | `GET /capabilities` | 操作枚举、资源限制、实际字体和工作线程情况 |
 
 `taskId` 就是请求的 `requestId`，必须匹配 `[A-Za-z0-9][A-Za-z0-9_-]{0,79}`。只提交 `raster`、`svg`、`mes` 中的一个。MES 专用生产图形请使用 [mes 兼容协议](mes-async-api.md)。
+
+生产 MES 使用主动回调：在同一请求增加 `callbackConfig: {callbackUrl, callbackCustomValue}`。图形服务完成后签名 POST 最终结果；成功或失败都回调，投递失败最多重试10次并持久化状态。MES 回调格式和验签规则见 [异步接口文档](mes-async-api.md)。以下 GET 查询说明用于人工排障或未配置回调的独立调用方。
 
 状态为 `QUEUED → RUNNING → SUCCEEDED / FAILED / TIMED_OUT`，重启中断的任务转为 `FAILED`。客户端每隔 0.5–2 秒查询一次，设置整体截止时间；不要在 MES 的 Web 请求线程中无限等待。重复提交时必须保持参数一致；幂等保留期与任务保留期相同。
 
@@ -103,24 +106,25 @@ EDIT 只接收标准 SVG 命名空间，根节点必须有数值宽高（可带 
 
 ## MES Java 调用片段
 
-继续使用 MES 已有的 RestTemplate；调用放入现有后台任务流程。配置连接及读取超时，API Key 从 MES 配置读取。
+现有 MES 使用 `ImgUtilClient → AlgorithmCoreApiService.generateGraphicsAsync`，沿用算法调用记录和 callbackConfig。以下是统一提交的示意；实际由 ImgUtilClient 先注册持久化回调关联、生成确定的 requestId，再提交：
 
 ```java
-HttpHeaders headers = new HttpHeaders();
-headers.setContentType(MediaType.APPLICATION_JSON);
-headers.set("X-Api-Key", graphicsApiKey);
+GraphicsGenerationRequest request = new GraphicsGenerationRequest();
+request.setRequestId(taskId);
+request.setMes(Map.of("operation", "BLACK", "parameters", Map.of("width", 8, "height", 3)));
 
-Map<String, Object> body = Map.of(
-    "requestId", "label-" + UUID.randomUUID(),
-    "raster", Map.of("kind", "LABEL", "widthMm", 100,
-        "heightMm", 20, "dpi", 150, "fontFamily", "Noto Sans CJK SC",
-        "lines", List.of("生产标签", "订单 MES-001")));
+GraphicsCallbackCustomValue custom = new GraphicsCallbackCustomValue();
+custom.setId(workflowId);
+custom.setWorkflowId(workflowId);
+custom.setTaskId(taskId);
+CallbackConfig callback = new CallbackConfig();
+callback.setCallbackUrl(graphicsCallbackUrl);
+callback.setCallbackCustomValue(custom);
+request.setCallbackConfig(callback);
 
-ResponseEntity<String> accepted = restTemplate.postForEntity(
-    graphicsBaseUrl + "/api/graphics/tasks", new HttpEntity<>(body, headers), String.class);
-// 从响应 data.taskId 保存任务编号；后台定时查询，不在 HTTP 请求中无限等待。
-ResponseEntity<String> state = restTemplate.exchange(
-    graphicsBaseUrl + "/api/graphics/tasks/" + body.get("requestId"),
-    HttpMethod.GET, new HttpEntity<Void>(headers), String.class);
-// 解析 data.status；成功后将 artifact.objectName 或下载后的对象名写回业务对象。
+algorithmCoreApiService.generateGraphicsAsync(request);
+// HTTP 202 仅表示接收。最终结果 POST 到 MES generate_graphics 回调接口。
+// 回调验签、持久化及唤醒后，由原后台工作流继续写入业务对象。
 ```
+
+`external.api.generateGraphicsUrl` 为完整提交地址，`external.callbackApi.generate_graphics` 为图形服务可访问的 MES 回调地址；MES 与图形服务配置相同 API Key。完整配置和 HMAC-SHA256 验签规则见 [MES 异步接口文档](mes-async-api.md)。

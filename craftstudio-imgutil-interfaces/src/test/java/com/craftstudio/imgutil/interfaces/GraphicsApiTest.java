@@ -11,7 +11,7 @@ import java.nio.file.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
-@SpringBootTest
+@SpringBootTest(properties="graphics.callback-dispatch-ms=100")
 @AutoConfigureMockMvc
 class GraphicsApiTest {
     private static final Path DATA = createDirectory();
@@ -22,6 +22,27 @@ class GraphicsApiTest {
         registry.add("graphics.max-request-bytes", () -> 4096);
     }
     @Autowired MockMvc mvc;
+    @Test void acceptsCallbackConfigAndActivelyDeliversSignedResult() throws Exception {
+        var received=new java.util.concurrent.CountDownLatch(1);
+        var body=new java.util.concurrent.atomic.AtomicReference<byte[]>();
+        var signature=new java.util.concurrent.atomic.AtomicReference<String>();
+        var callback=com.sun.net.httpserver.HttpServer.create(new java.net.InetSocketAddress("127.0.0.1",0),0);
+        callback.createContext("/complete",exchange->{body.set(exchange.getRequestBody().readAllBytes());signature.set(exchange.getRequestHeaders().getFirst("X-Graphics-Signature"));exchange.sendResponseHeaders(200,-1);exchange.close();received.countDown();});callback.start();
+        try{
+            String request="""
+                {"requestId":"callback-http","mes":{"operation":"BLACK","parameters":{"width":8,"height":3}},
+                 "callbackConfig":{"callbackUrl":"http://127.0.0.1:%d/complete","callbackCustomValue":{"workflowId":"workflow","taskId":"callback-http"}}}
+                """.formatted(callback.getAddress().getPort());
+            mvc.perform(post("/api/graphics/tasks").header("X-Api-Key","test-api-key").header("X-Fc-Invocation-Type","Async").contentType("application/json").content(request))
+                    .andExpect(status().isAccepted());
+            org.junit.jupiter.api.Assertions.assertTrue(received.await(5,java.util.concurrent.TimeUnit.SECONDS));
+            var mac=javax.crypto.Mac.getInstance("HmacSHA256");mac.init(new javax.crypto.spec.SecretKeySpec("test-api-key".getBytes(java.nio.charset.StandardCharsets.UTF_8),"HmacSHA256"));
+            org.junit.jupiter.api.Assertions.assertEquals(java.util.HexFormat.of().formatHex(mac.doFinal(body.get())),signature.get());
+            String result=new String(body.get(),java.nio.charset.StandardCharsets.UTF_8);
+            org.junit.jupiter.api.Assertions.assertTrue(result.contains("\"status\":\"success\""));
+            org.junit.jupiter.api.Assertions.assertTrue(result.contains("\"workflowId\":\"workflow\""));
+        }finally{callback.stop(0);}
+    }
     @Test void requiresAuthenticationAndCapsRequestBody() throws Exception {
         mvc.perform(get("/api/graphics/capabilities")).andExpect(status().isUnauthorized());
         mvc.perform(get("/api/graphics/capabilities").header("X-Api-Key", "test-api-key"))
