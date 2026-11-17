@@ -174,6 +174,9 @@ public class DoubleSideMountingLayoutBuildServiceKernel extends LegacySupport {
     }
 
     private BufferedImage decodePngDataUri(String dataUri) {
+        // Older MES sends its separate arrow mark in the optional QR slot. The original
+        // renderer ignored this URL; keep that layout without fetching remote resources.
+        if (LEFT_ARROW_URL.equals(dataUri) || RIGHT_ARROW_URL.equals(dataUri)) return null;
         return decodeDataUri(dataUri);
     }
 
