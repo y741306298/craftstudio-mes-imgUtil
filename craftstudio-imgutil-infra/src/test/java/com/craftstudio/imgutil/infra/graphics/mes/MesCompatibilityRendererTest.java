@@ -46,6 +46,45 @@ class MesCompatibilityRendererTest {
             var image=ImageIO.read(new ByteArrayInputStream(render(operation,params)));assertNotNull(image,operation);assertTrue(image.getWidth()>0,operation);
         }
     }
+    private Map<String,Object> doubleLabel(boolean rotate) {
+        return new HashMap<>(Map.of("stripWidth",300,"stripHeight",30,"elementA","A-001",
+                "elementB","001.plt","rotate180",rotate));
+    }
+    @Test void legacyArrowUrlsInDoubleLabelQrSlotKeepOriginalPixels() throws Exception {
+        for(boolean rotate:List.of(false,true)) {
+            var parameters=doubleLabel(rotate);
+            byte[] original=render("DOUBLE_TAG",parameters);
+            for(String arrow:List.of("leftarrow","rightarrow")) {
+                parameters.put("qrDataUri","https://craftstudio-mes-test.oss-cn-hangzhou.aliyuncs.com/basetag/basetag-"+arrow+".png");
+                assertArrayEquals(original,render("DOUBLE_TAG",parameters));
+            }
+        }
+        var parameters=doubleLabel(false);parameters.put("qrDataUri","http://127.0.0.1:1/arbitrary.png");
+        assertThrows(IllegalStateException.class,()->render("DOUBLE_TAG",parameters));
+    }
+    @Test void allQrLabelFamiliesStillRenderDecodableQrContentAndInlinePng() throws Exception {
+        String content="PLATE-001.plt";
+        String qrContent="qr-content:"+Base64.getEncoder().encodeToString(content.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+        var matrix=new com.google.zxing.qrcode.QRCodeWriter().encode(content,com.google.zxing.BarcodeFormat.QR_CODE,512,512);
+        var qrImage=new java.awt.image.BufferedImage(512,512,java.awt.image.BufferedImage.TYPE_INT_RGB);
+        for(int y=0;y<512;y++)for(int x=0;x<512;x++)qrImage.setRGB(x,y,matrix.get(x,y)?Color.BLACK.getRGB():Color.WHITE.getRGB());
+        var png=new ByteArrayOutputStream();ImageIO.write(qrImage,"png",png);qrImage.flush();
+        String inline="data:image/png;base64,"+Base64.getEncoder().encodeToString(png.toByteArray());
+        for(String operation:List.of("DOUBLE_TAG","CIRCLE_TAG","CROSS_TAG")) {
+            for(String input:List.of(qrContent,inline)) {
+                var parameters=doubleLabel(false);parameters.put("qrDataUri",input);
+                var image=ImageIO.read(new ByteArrayInputStream(render(operation,parameters)));
+                int qrLeft=(int)Math.round(10*300/25.4),qrSize=(int)Math.round(15*300/25.4);
+                if(!operation.equals("DOUBLE_TAG"))qrLeft+=(int)Math.round(30*300/25.4);
+                int qrTop=image.getHeight()-(int)Math.round(17*300/25.4);
+                int x=qrLeft-10,y=qrTop-10,w=qrSize+20,h=qrSize+20;
+                int[] pixels=image.getRGB(x,y,w,h,null,0,w);
+                var bitmap=new com.google.zxing.BinaryBitmap(new com.google.zxing.common.HybridBinarizer(new com.google.zxing.RGBLuminanceSource(w,h,pixels)));
+                assertEquals(content,new com.google.zxing.MultiFormatReader().decode(bitmap,Map.of(com.google.zxing.DecodeHintType.PURE_BARCODE,true)).getText(),operation);
+                image.flush();
+            }
+        }
+    }
     @Test void preservesNegativeViewBoxAndPltPolicyDuringLiubaiExpansion()throws Exception{
         String source="<svg xmlns='http://www.w3.org/2000/svg' width='100' height='50' viewBox='0 0 100 50'><rect width='100' height='50'/></svg>";
         String result=new String(render("LIUBAI_EXPAND",Map.of("originalSvg",source,"pieceMongoId","piece","markPngUrl","border.png","originalContentImg","image.tif","originalWidth",100,"originalHeight",50,"margins",Map.of("left",20,"right",20,"top",20,"bottom",20),"specName","2cm","tagMarkKeyPrefix","liubai-tag")),java.nio.charset.StandardCharsets.UTF_8);

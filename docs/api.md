@@ -108,6 +108,8 @@ EDIT 只接收标准 SVG 命名空间，根节点必须有数值宽高（可带 
 
 异步失败在查询结果中返回 `errorCode`，例如 INVALID_GRAPHICS、RENDER_FAILED、TASK_TIMEOUT、SERVICE_RESTARTED；查询本身仍返回 200。网络不确定时先用原编号查询或重发，避免重复生成。
 
+DOUBLE_TAG 的 qrDataUri 可省略。双面对裱固定箭头由 MES 作为独立 mark 提交；旧版 MES 将固定箭头 URL 误放到二维码位时兼容忽略该占位值，保持原布局。图形服务不会下载这些 URL；实际二维码仍使用 qr-content 或 PNG data URI。
+
 ## MES Java 调用片段
 
 现有 MES 使用 `ImgUtilClient → AlgorithmCoreApiService.generateGraphicsAsync`，沿用算法调用记录和 callbackConfig。以下是统一提交的示意；实际由 ImgUtilClient 先注册持久化回调关联、生成确定的 requestId，再提交：
