@@ -10,6 +10,7 @@ import org.junit.jupiter.api.io.TempDir;
 import tools.jackson.databind.json.JsonMapper;
 import java.io.OutputStream;
 import java.nio.file.*;
+import java.util.UUID;
 import java.util.concurrent.*;
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -50,7 +51,13 @@ class AppGraphicsTaskServiceTest {
             assertEquals(429, assertThrows(TaskException.class, () -> service.submit(request("third", 1))).status());
             assertTrue(repo.find("third").isEmpty());
             release.countDown();
-            var job = await(service, "first", JobStatus.SUCCEEDED); await(service, "second", JobStatus.SUCCEEDED);
+            var job = await(service, "first", JobStatus.SUCCEEDED);
+            var secondJob = await(service, "second", JobStatus.SUCCEEDED);
+            String filename = job.artifact().filename();
+            assertEquals(UUID.fromString(filename.substring(0, 36)) + ".png", filename);
+            assertNotEquals(filename, secondJob.artifact().filename());
+            assertEquals(filename, service.submit(request("first", 1)).artifact().filename());
+            assertEquals("/api/graphics/tasks/first/artifact", job.artifact().downloadPath());
             assertEquals(3, job.artifact().bytes()); assertEquals(64, job.artifact().sha256().length());
             assertArrayEquals(new byte[]{1,2,3}, Files.readAllBytes(service.artifact("first")));
             assertEquals(JobStatus.SUCCEEDED, new FileJobRepository(props, mapper).find("first").orElseThrow().status());
@@ -76,9 +83,13 @@ class AppGraphicsTaskServiceTest {
         var props = properties(10); var mapper = new JsonMapper(); var repo = new FileJobRepository(props, mapper); var store = new FileArtifactStore(props);
         repo.save(new GraphicsJob("interrupted", "fingerprint", JobStatus.RUNNING, 1, 1, null, null, null));
         repo.save(new GraphicsJob("expired", "fingerprint", JobStatus.FAILED, 1, 1, null, "ERROR", "failed"));
+        var legacy = new Artifact("result.png", "image/png", 3, "hash", 1, 1, "px", "/api/graphics/tasks/legacy/artifact", null);
+        repo.save(new GraphicsJob("legacy", "fingerprint", JobStatus.SUCCEEDED, 1, System.currentTimeMillis(), legacy, null, null));
+        Files.write(Files.createDirectories(directory.resolve("artifacts/legacy")).resolve(legacy.filename()), new byte[]{1, 2, 3});
         var service = new AppGraphicsTaskService(repo, store, renderer(new CountDownLatch(0), new CountDownLatch(0), false), props, mapper);
         try {
             assertEquals("SERVICE_RESTARTED", service.find("interrupted").errorCode());
+            assertArrayEquals(new byte[]{1, 2, 3}, Files.readAllBytes(service.artifact("legacy")));
             service.cleanupExpired(); assertTrue(repo.find("expired").isEmpty()); assertTrue(repo.find("interrupted").isPresent());
         } finally { service.close(); store.close(); }
     }

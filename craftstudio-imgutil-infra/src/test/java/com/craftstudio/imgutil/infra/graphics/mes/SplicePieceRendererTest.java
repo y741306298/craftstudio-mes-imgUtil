@@ -32,7 +32,7 @@ class SplicePieceRendererTest {
             public Artifact publish(String id, Path path, RenderResult result) throws Exception { return local.publish(id,path,result); }
             public Artifact publishNamed(String id, String name, Path path, RenderResult result) throws Exception {
                 Artifact a = local.publishNamed(id,name,path,result);
-                published.put(name, directory.resolve("artifacts/" + id + "/" + name + ".png"));
+                published.put(name, local.resolve(id, a.filename()));
                 return new Artifact(a.filename(),a.mediaType(),a.bytes(),a.sha256(),a.width(),a.height(),a.unit(),null,"imgutil/"+id+"/"+a.filename());
             }
             public Path resolve(String id,String name) { return local.resolve(id,name); }
@@ -77,7 +77,7 @@ class SplicePieceRendererTest {
             }
         }
         String svg=out.toString(java.nio.charset.StandardCharsets.UTF_8);
-        assertTrue(svg.contains("img=\"https://bucket.example.com/imgutil/piece/yellow-vertical.png\""));
+        assertTrue(svg.contains("img=\"https://bucket.example.com/" + result.assets().get("yellow-vertical") + "\""));
         assertTrue(svg.contains("id=\"piece\""));assertTrue(svg.contains("require-plt=\"true\""));
         local.delete("piece");assertFalse(Files.exists(directory.resolve("artifacts/piece")));
     }
