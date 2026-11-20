@@ -164,7 +164,7 @@ Authorization: Bearer {MES登录令牌}
   "status":"success",
   "result":{
     "taskId":"图形taskId",
-    "artifact":{"objectName":"imgutil/taskId/result.png","width":8,"height":3,"mediaType":"image/png"}
+    "artifact":{"objectName":"imgutil/taskId/27ec4117-fca2-4de6-8ec5-ba39d7568084.png","width":8,"height":3,"mediaType":"image/png"}
   },
   "error":null,
   "errorCode":null,
@@ -198,6 +198,7 @@ MES 根据回调中的 artifact.objectName/width/height 继续业务。只有需
 | BUCKLE_APPEND / SPLICE_APPEND / SVG_RECT_GROUP | 追加扣点、拼接组及矩形标记，保留原 img 和工艺元数据 |
 | SUB_OPEN / SUB_ORIGINAL / SUB_BACK / SUB_POINT / SUB_BORDER | 热升华 SVG 原语；反面只保留对应图片矩形 |
 | SUB_CLEAN / SVG_REMOVE_SPLICE | 清理镜像工艺标记，保留排版位置和原图组 |
+| NESTED_MIRROR_CLEAN | 排版回调传入 source 和 sublimation，按旧 MES 规则清理拼接标记及热升华标记。保留原样式，内容变化时上传一次 OSS。MES 用回调中的 sha256 判断是否复用原地址。 |
 | SVG_RESIZE / SVG_REDO_ID | 材料根尺寸调整、重做首个匹配 ID 替换 |
 
 双面对裱的固定箭头作为独立 forme mark 提交（elementG），不会再放入 DOUBLE_TAG.qrDataUri。为兼容旧 MES，图形服务遇到旧版本使用的固定 basetag-leftarrow.png / basetag-rightarrow.png 地址时沿用原标签行为：跳过二维码位绘制，保留独立箭头 mark，不下载远程图片。其他 URL 仍不作为二维码输入；PNG data URI 和 qr-content 输入继续支持。圆形/十字标签继续传真实二维码内容。
@@ -238,20 +239,20 @@ MES 的 SuperWidthSpliceProcessService 现在只提交一个 `SPLICE_PIECE` 任�
 
 artifactBaseUrl 由 MES 的 graphics.imgutil.artifact-base-url 自动填入，必须对应图形服务上传桶。groupText 为1–512字符；marks 最多32项，assetKey 可为 dark-horizontal、dark-vertical、stripe-horizontal、stripe-vertical、yellow-horizontal、yellow-vertical、gray-horizontal、gray-vertical。坐标、尺寸、ID 和工艺元数据沿用旧规则；MES 仍规划点位。已有拼接标记时不重复追加，使用空 marks 生成素材，MES 保留原 mask 引用。
 
-成功回调仍返回 result.artifact，objectName 是最终 SVG；新增 assets 为上述8个 assetKey 到 OSS 对象名的映射。例如：
+成功回调仍返回 result.artifact，objectName 是最终 SVG，assets 为上述 8 个 assetKey 到 OSS 对象名的映射。每个产物各自使用 UUID 文件名。例如：
 
 ```json
 {
-  "objectName":"imgutil/mes-piece-complete/result.svg",
+  "objectName":"imgutil/mes-piece-complete/27ec4117-fca2-4de6-8ec5-ba39d7568084.svg",
   "assets":{
-    "dark-horizontal":"imgutil/mes-piece-complete/dark-horizontal.png",
-    "dark-vertical":"imgutil/mes-piece-complete/dark-vertical.png",
-    "stripe-horizontal":"imgutil/mes-piece-complete/stripe-horizontal.png",
-    "stripe-vertical":"imgutil/mes-piece-complete/stripe-vertical.png",
-    "yellow-horizontal":"imgutil/mes-piece-complete/yellow-horizontal.png",
-    "yellow-vertical":"imgutil/mes-piece-complete/yellow-vertical.png",
-    "gray-horizontal":"imgutil/mes-piece-complete/gray-horizontal.png",
-    "gray-vertical":"imgutil/mes-piece-complete/gray-vertical.png"
+    "dark-horizontal":"imgutil/mes-piece-complete/d3bc76e9-4223-45a4-a9bd-c08c0a6ccf6d.png",
+    "dark-vertical":"imgutil/mes-piece-complete/ec76cbce-f1de-45a3-ae25-6ab53256f238.png",
+    "stripe-horizontal":"imgutil/mes-piece-complete/c4294f17-f19b-4638-a5b2-284dd39e3655.png",
+    "stripe-vertical":"imgutil/mes-piece-complete/99c50651-d19e-48f1-9ff8-dc68751f4076.png",
+    "yellow-horizontal":"imgutil/mes-piece-complete/8a5a6318-5721-4358-a6de-79977d12982d.png",
+    "yellow-vertical":"imgutil/mes-piece-complete/e2a6981c-cc99-42ff-b1ba-18e64a1d4a89.png",
+    "gray-horizontal":"imgutil/mes-piece-complete/4f9fbca5-4ad8-40bd-abba-f087c7d33c91.png",
+    "gray-vertical":"imgutil/mes-piece-complete/5c79cc53-748c-4e9c-8264-1bf1a41ef88c.png"
   }
 }
 ```

@@ -73,12 +73,30 @@ class SplicePieceApiTest {
         mvc.perform(post("/api/graphics/tasks").header("X-Api-Key",KEY).contentType("application/json").content(request)).andExpect(status().isAccepted());
         assertTrue(RECEIVED.await(10,TimeUnit.SECONDS));
         var result=mapper.readTree(BODY.get());assertEquals("success",result.path("status").asString());
-        assertEquals(8,result.path("result").path("artifact").path("assets").size());
+        var artifact = result.path("result").path("artifact");
+        var assets = artifact.path("assets");
+        assertEquals(8, assets.size());
         assertEquals(9,OBJECTS.size()); // Eight PNGs and one final SVG, no child tasks.
         try(var jobs=Files.list(DATA.resolve("jobs"))){assertEquals(1,jobs.count());}
         try(var files=Files.list(DATA.resolve("artifacts/whole-piece"))){assertEquals(9,files.count());}
-        String svg=Files.readString(DATA.resolve("artifacts/whole-piece/result.svg"));
-        assertTrue(svg.contains("stripe-horizontal.png"));assertTrue(svg.contains("yellow-horizontal.png"));
+        String filename = artifact.path("filename").asString();
+        assertEquals(UUID.fromString(filename.substring(0, 36)) + ".svg", filename);
+        String objectName = artifact.path("objectName").asString();
+        assertTrue(objectName.endsWith("/whole-piece/" + filename));
+        assertTrue(OBJECTS.containsKey("/test-bucket/" + objectName));
+        Set<String> assetFilenames = new HashSet<>();
+        for (var entry : assets.properties()) {
+            String assetObjectName = entry.getValue().asString();
+            String assetFilename = assetObjectName.substring(assetObjectName.lastIndexOf('/') + 1);
+            assertEquals(UUID.fromString(assetFilename.substring(0, 36)) + ".png", assetFilename);
+            assertTrue(assetFilenames.add(assetFilename));
+            assertTrue(OBJECTS.containsKey("/test-bucket/" + assetObjectName));
+        }
+        String svg = Files.readString(DATA.resolve("artifacts/whole-piece").resolve(filename));
+        assertTrue(svg.contains("https://bucket.example.com/" + assets.path("stripe-horizontal").asString()));
+        assertTrue(svg.contains("https://bucket.example.com/" + assets.path("yellow-horizontal").asString()));
+        mvc.perform(get("/api/graphics/tasks/whole-piece/artifact").header("X-Api-Key", KEY))
+                .andExpect(status().isOk()).andExpect(header().string("Content-Disposition", "attachment; filename=\"" + filename + "\""));
         var mac=javax.crypto.Mac.getInstance("HmacSHA256");mac.init(new javax.crypto.spec.SecretKeySpec(KEY.getBytes(StandardCharsets.UTF_8),"HmacSHA256"));
         assertEquals(HexFormat.of().formatHex(mac.doFinal(BODY.get())),SIGNATURE.get());
         long deadline=System.nanoTime()+TimeUnit.SECONDS.toNanos(5);

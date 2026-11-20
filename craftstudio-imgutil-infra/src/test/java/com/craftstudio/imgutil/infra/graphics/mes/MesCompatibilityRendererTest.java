@@ -95,6 +95,38 @@ class MesCompatibilityRendererTest {
         String result=new String(render("BUCKLE_APPEND",Map.of("originalSvg",source,"pieceId","piece","originalContentImg","image.tif","markKeyPrefix","buckle","markPoints",List.of(Map.of("suffix","top-left","centerX",25,"centerY",25)))),java.nio.charset.StandardCharsets.UTF_8);
         assertTrue(result.contains("buckle-top-left-piece"));assertTrue(result.contains("img=\"image.tif\""));assertTrue(result.contains("translate(21 21)"));
     }
+    @Test void mirrorCleanupPreservesLegacyTextAndUploadsOnlyChangedContent() throws Exception {
+        String prefix = "<svg xmlns='http://www.w3.org/2000/svg'><g style='fill:var(--ink)'><rect/></g>";
+        String original = prefix + "</svg>";
+        var out = new ByteArrayOutputStream();
+        RenderResult unchanged = renderer.render(new MesSpec("NESTED_MIRROR_CLEAN", Map.of("source", original)), out);
+        assertEquals(original, out.toString(java.nio.charset.StandardCharsets.UTF_8));
+        assertFalse(unchanged.publishToOss());
+
+        out.reset();
+        String source = prefix + "<g id='ADHESIVE-SPLICE-mark'><rect/></g></svg>";
+        RenderResult changed = renderer.render(new MesSpec("NESTED_MIRROR_CLEAN", Map.of("source", source)), out);
+        assertEquals(original, out.toString(java.nio.charset.StandardCharsets.UTF_8));
+        assertTrue(changed.publishToOss());
+        assertThrows(IllegalArgumentException.class, () -> render("SVG_SAVE", Map.of("source", original)));
+    }
+
+    @Test void sublimationMirrorCleanupRunsBothLegacyPasses() throws Exception {
+        String source = """
+                <svg xmlns="http://www.w3.org/2000/svg">
+                  <g id="sublimation-original-piece" style="stroke:var(--ink)"><rect/></g>
+                  <g id="panel-splice-mark"><rect/></g>
+                  <g id="sublimation-border-piece"><rect/></g>
+                </svg>
+                """;
+        String result = new String(render("NESTED_MIRROR_CLEAN", Map.of("source", source, "sublimation", true)),
+                java.nio.charset.StandardCharsets.UTF_8);
+        assertTrue(result.contains("sublimation-original-piece"));
+        assertTrue(result.contains("stroke:var(--ink)"));
+        assertFalse(result.contains("panel-splice-mark"));
+        assertFalse(result.contains("sublimation-border-piece"));
+    }
+
     @Test void rejectsUnsafeSvgUnknownOperationsAndInvalidDimensions()throws Exception{
         assertThrows(IllegalArgumentException.class,()->renderer.validate(new MesSpec("CLASS_FOR_NAME",Map.of())));
         assertThrows(IllegalArgumentException.class,()->render("BLACK",Map.of("width",0,"height",1)));

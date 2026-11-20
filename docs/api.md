@@ -33,7 +33,7 @@
   "createdAt":1794700000000,
   "updatedAt":1794700001000,
   "artifact":{
-    "filename":"result.png",
+    "filename":"27ec4117-fca2-4de6-8ec5-ba39d7568084.png",
     "mediaType":"image/png",
     "bytes":1234,
     "sha256":"文件 SHA-256",
@@ -49,6 +49,8 @@
 ```
 
 时间为 Unix 毫秒，PNG 宽高单位为像素，SVG 为 MES 使用的毫米坐标。`objectName` 仅在启用 OSS 时返回。下载地址是服务自身的相对路径，鉴权方式相同；建议 MES 使用 OSS 对象名接续现有业务。
+
+新生成的 PNG、SVG 及拼接素材均各自使用 UUID 文件名。使用返回的 `downloadPath` 或 `objectName` 获取文件。相同任务的幂等提交返回原文件。
 
 画布单边尺寸、总像素及累计画布像素校验已移除，PNG 绘制、解码和旋转均不再受 max-dimension/max-pixels 限制；capabilities 返回 pixelLimitsEnabled=false。宽高正数、有限数值、DPI、文件大小和任务队列等校验继续生效。
 

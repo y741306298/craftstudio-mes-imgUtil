@@ -10,7 +10,11 @@ import java.util.regex.*;
 
 @Component
 public class MesSvgRenderer {
-    private static final Set<String> OPS=Set.of("SVG_SAVE","SVG_MASK","LIUBAI_EXPAND","LIUBAI_GROUPS","BUCKLE_APPEND","SPLICE_APPEND","SPLICE_MARKS_APPEND","SUB_OPEN","SUB_ORIGINAL","SUB_BACK","SUB_POINT","SUB_BORDER","SUB_CLEAN","SVG_RESIZE","SVG_RECT_GROUP","NESTING_MARKER_SVG","SVG_REMOVE_SPLICE","SVG_REDO_ID");
+    private static final Set<String> OPS=Set.of("SVG_SAVE","SVG_MASK","LIUBAI_EXPAND","LIUBAI_GROUPS","BUCKLE_APPEND","SPLICE_APPEND","SPLICE_MARKS_APPEND","SUB_OPEN","SUB_ORIGINAL","SUB_BACK","SUB_POINT","SUB_BORDER","SUB_CLEAN","SVG_RESIZE","SVG_RECT_GROUP","NESTING_MARKER_SVG","SVG_REMOVE_SPLICE","SVG_REDO_ID","NESTED_MIRROR_CLEAN");
+    private static final Pattern SPLICE_MARK_GROUP_PATTERN = Pattern.compile(
+            "<g\\b(?=[^>]*\\bid\\s*=\\s*([\"'])(?:super-width-splice|adhesive-splice|photo-splice|board-cover-splice|inkjet-splice|seamless-splice|panel-splice)-).*?</g\\s*>",
+            Pattern.CASE_INSENSITIVE | Pattern.DOTALL
+    );
     private final DomSvgEditor guard;
     public MesSvgRenderer(DomSvgEditor guard){this.guard=guard;}
     public boolean supports(String operation){return operation!=null && OPS.contains(operation);}
@@ -18,6 +22,14 @@ public class MesSvgRenderer {
     public RenderResult render(MesSpec spec,OutputStream output)throws Exception {
         Params p=new Params(spec.parameters());
         String source=p.text("source");
+        if ("NESTED_MIRROR_CLEAN".equals(spec.operation())) {
+            String cleaned = SPLICE_MARK_GROUP_PATTERN.matcher(source).replaceAll("");
+            if (p.bool("sublimation", false)) {
+                cleaned = SublimationMirrorSvgCleaner.clean(cleaned);
+            }
+            output.write(cleaned.getBytes(StandardCharsets.UTF_8));
+            return new RenderResult("image/svg+xml", "svg", 0, 0, "mm", Map.of(), !cleaned.equals(source));
+        }
         for(String field:List.of("source","originalSvg"))if(p.values.containsKey(field))guard.validateMarkup(p.text(field));
         var liubai=new LiubaiSvgKernel(p);
         Params margins=new Params((Map<String,Object>)p.values.getOrDefault("margins",Map.of()));
