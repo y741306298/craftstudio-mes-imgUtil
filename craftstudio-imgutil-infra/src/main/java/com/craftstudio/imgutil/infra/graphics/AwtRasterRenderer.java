@@ -111,7 +111,8 @@ public class AwtRasterRenderer {
 
     private void drawLabel(Graphics2D g, RasterSpec s, int[] size) {
         int requested = s.fontSizeMm() > 0 ? (int) Math.ceil(px(s.fontSizeMm(), s.dpi())) : Math.max(1, size[1] / (s.lines().size() + 1));
-        Font font = new Font(s.fontFamily(), s.bold() ? Font.BOLD : Font.PLAIN, Math.max(1, requested));
+        Font font = GraphicsTextFonts.resolve(new Font(s.fontFamily(), s.bold() ? Font.BOLD : Font.PLAIN, requested),
+                String.join("", s.lines()));
         FontMetrics metrics = g.getFontMetrics(font);
         int width = s.lines().stream().mapToInt(metrics::stringWidth).max().orElse(1);
         double scale = Math.min(1D, Math.min((size[0] - 2D) / Math.max(1, width), (size[1] - 2D) / (metrics.getHeight() * (double) s.lines().size())));

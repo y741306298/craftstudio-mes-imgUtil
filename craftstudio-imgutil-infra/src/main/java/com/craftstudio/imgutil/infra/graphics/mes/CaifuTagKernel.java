@@ -1,4 +1,6 @@
 package com.craftstudio.imgutil.infra.graphics.mes;
+
+import com.craftstudio.imgutil.infra.graphics.GraphicsTextFonts;
 import java.awt.*;
 import java.awt.geom.*;
 import java.awt.image.BufferedImage;
@@ -33,7 +35,7 @@ public class CaifuTagKernel extends LegacySupport {
             g.fillRect(0, 0, canvasWidthPx, canvasHeightPx);
             g.setColor(Color.BLACK);
             g.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
-            g.setFont(elementFFont(textHeight));
+            g.setFont(GraphicsTextFonts.productionMark(Objects.toString(elementA, ""), textHeight));
             FontMetrics fontMetrics = g.getFontMetrics();
             int baselineY = ((canvasHeightPx - textHeight) / 2) + ((textHeight - fontMetrics.getHeight()) / 2) + fontMetrics.getAscent();
             int currentX = mmToPx(TAG_TEXT_LEFT_MM);

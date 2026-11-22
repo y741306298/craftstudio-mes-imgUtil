@@ -5,9 +5,11 @@ import com.craftstudio.imgutil.infra.config.GraphicsProperties;
 import org.junit.jupiter.api.Test;
 import javax.imageio.ImageIO;
 import java.awt.Color;
+import java.awt.GraphicsEnvironment;
 import java.io.*;
 import java.util.*;
 import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 class LocalGraphicsRendererTest {
     private final GraphicsProperties properties = new GraphicsProperties("", "data", 2, 16, 30, 24, 8192, 8000000, 600, 1048576, 33554432, 20000, 64, 2147483648L, null);
@@ -39,6 +41,21 @@ class LocalGraphicsRendererTest {
         int occupied = 0;
         for (int y = 0; y < image.getHeight(); y++) for (int x = 0; x < image.getWidth(); x++) if ((image.getRGB(x, y) >>> 24) != 0) occupied++;
         assertTrue(occupied > 100); assertTrue(occupied < image.getWidth() * image.getHeight());
+    }
+    @Test void defaultLabelMatchesTheElementFFamilyAndDrawsChineseGlyphs() throws Exception {
+        assumeTrue(Arrays.stream(GraphicsEnvironment.getLocalGraphicsEnvironment().getAllFonts())
+                .anyMatch(font -> font.canDisplayUpTo("留白") < 0));
+        byte[] first = renderLabel(null, "留");
+        assertArrayEquals(renderLabel("Source Han Sans SC VF", "留"), first);
+        assertFalse(Arrays.equals(first, renderLabel(null, "白")));
+    }
+
+    private byte[] renderLabel(String family, String text) throws Exception {
+        var spec = new RasterSpec(RasterSpec.Kind.LABEL, 30, 10, 254, "#000000", "transparent", 0.1,
+                4, family, false, List.of(text), 0.1, false, 0, null, 0);
+        var out = new ByteArrayOutputStream();
+        raster.render(spec, out);
+        return out.toByteArray();
     }
     @Test void acceptsLargeCanvasAndRotationButRejectsNonFiniteDimensions() {
         assertDoesNotThrow(() -> raster.validate(raster(RasterSpec.Kind.SOLID, 2000, 2000, 0, List.of())));

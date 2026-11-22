@@ -46,10 +46,15 @@ class SplicePieceRendererTest {
         return Map.of("groupText","618#1-2", "artifactBaseUrl","https://bucket.example.com", "pieceMongoId","piece",
                 "originalContentImg","image.tif", "originalSvg","<svg xmlns='http://www.w3.org/2000/svg' width='100' height='200'><path d='M0 0 H100 V200 H0 Z'/></svg>", "marks",marks);
     }
-    @Test void createsAllEightAssetsWithLegacyPixelsAndEmbedsTheirUrls() throws Exception {
+    @Test void createsAllEightAssetsAndMatchesTheStandaloneTextRenderer() throws Exception {
+        String chineseText = "拼接#1-2";
+        String groupText = Arrays.stream(GraphicsEnvironment.getLocalGraphicsEnvironment().getAllFonts())
+                .anyMatch(font -> font.canDisplayUpTo(chineseText) < 0) ? chineseText : "618#1-2";
+        Map<String, Object> params = new LinkedHashMap<>(parameters(List.of(Map.of("id","mark","assetKey","yellow-vertical",
+                "x",12.5,"y",20,"width",8,"height",56))));
+        params.put("groupText", groupText);
         var out = new ByteArrayOutputStream();
-        RenderResult result = renderer.render("piece", parameters(List.of(Map.of("id","mark","assetKey","yellow-vertical",
-                "x",12.5,"y",20,"width",8,"height",56))), out);
+        RenderResult result = renderer.render("piece", params, out);
         assertEquals(8,result.assets().size()); assertEquals(8,published.size());
         for (var entry : published.entrySet()) {
             try (var kernel = new SpliceRasterKernel()) {
@@ -59,7 +64,7 @@ class SplicePieceRendererTest {
                 if (key.startsWith("dark-")) expected = kernel.createStripeImage(key.endsWith("vertical")?1:6,key.endsWith("vertical")?6:1,Color.BLACK);
                 else {
                     expected = key.startsWith("stripe-") ? kernel.createStripeImage(6,1,new Color(204,204,204))
-                            : kernel.createTextImage(56,8,"618#1-2",key.startsWith("yellow-")?new Color(255,255,204):new Color(204,204,204));
+                            : kernel.createTextImage(groupText.length() * 8D,8,groupText,key.startsWith("yellow-")?new Color(255,255,204):new Color(204,204,204));
                     // Encode/decode and rotate as the former remote TRANSFORM path did.
                     var png = new ByteArrayOutputStream(); ImageIO.write(expected,"png",png);
                     BufferedImage decoded = ImageIO.read(new ByteArrayInputStream(png.toByteArray()));

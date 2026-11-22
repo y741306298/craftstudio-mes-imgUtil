@@ -1,4 +1,6 @@
 package com.craftstudio.imgutil.infra.graphics.mes;
+
+import com.craftstudio.imgutil.infra.graphics.GraphicsTextFonts;
 import java.awt.*;
 import java.awt.geom.*;
 import java.awt.image.BufferedImage;
@@ -32,7 +34,6 @@ public class CircleQrLayoutBuildServiceKernel extends LegacySupport {
     private static final int SIDE_EXPAND_MM = 6;
     private static final int SIDE_ANCHOR_INTERVAL_MM = 1150;
     private static final int ANCHOR_INNER_SHIFT_MM = 30;
-    private static final String TAG_TEXT_FONT = "Source Han Sans SC VF";
     private static final String RIGHT_ARROW_URL = "https://craftstudio-mes-test.oss-cn-hangzhou.aliyuncs.com/basetag/basetag-rightarrow.png";
     public BufferedImage render(String businessId,
                                         String manufacturerMetaId,
@@ -59,7 +60,11 @@ public class CircleQrLayoutBuildServiceKernel extends LegacySupport {
         int bX = qrLeftPx + qrSizePx + mmToPx(ELEMENT_GAP_MM);
         int textHeight = Math.max(mmToPx(4), 1);
         int maxContentWidthPx = mmToPx(tagContentMaxWidth == null ? stripWidthInt : tagContentMaxWidth.doubleValue());
-        TagTextLayout tagTextLayout = resolveTagTextLayout(elementA, elementAExtInfos, commonOrderId, elementB, bX, textHeight, maxContentWidthPx, hasRedoProductionPiece);
+        List<String> tagTexts = buildTagTexts(elementA, elementAExtInfos, commonOrderId, elementB, hasRedoProductionPiece);
+        String displayText = tagTexts.stream().map(this::extractDisplayText).collect(Collectors.joining());
+        Font font = GraphicsTextFonts.productionMark(displayText, textHeight);
+        Font wrappedFont = font.deriveFont((float) Math.max(mmToPx(WRAPPED_EXT_INFO_TEXT_HEIGHT_MM), 1));
+        TagTextLayout tagTextLayout = resolveTagTextLayout(tagTexts, bX, font, wrappedFont, maxContentWidthPx);
 
         BufferedImage canvas = canvas(canvasWidthPx, canvasHeightPx, BufferedImage.TYPE_INT_RGB);
         Graphics2D g = canvas.createGraphics();
@@ -68,11 +73,11 @@ public class CircleQrLayoutBuildServiceKernel extends LegacySupport {
             g.fillRect(0, 0, canvasWidthPx, canvasHeightPx);
             g.setColor(Color.BLACK);
             g.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
-            g.setFont(new Font(TAG_TEXT_FONT, Font.PLAIN, textHeight));
+            g.setFont(font);
             FontMetrics fontMetrics = g.getFontMetrics();
             int textTopY = (canvasHeightPx - textHeight) / 2;
             int textBaseLineY = textTopY + ((textHeight - fontMetrics.getHeight()) / 2) + fontMetrics.getAscent();
-            Font extInfoFont = tagTextLayout.wrap ? new Font(TAG_TEXT_FONT, Font.PLAIN, Math.max(mmToPx(WRAPPED_EXT_INFO_TEXT_HEIGHT_MM), 1)) : g.getFont();
+            Font extInfoFont = tagTextLayout.wrap ? wrappedFont : font;
             FontMetrics extInfoFontMetrics = tagTextLayout.wrap ? g.getFontMetrics(extInfoFont) : fontMetrics;
             int extInfoFirstBaseLineY = textBaseLineY;
             int extInfoSecondBaseLineY = textBaseLineY;
@@ -109,21 +114,14 @@ public class CircleQrLayoutBuildServiceKernel extends LegacySupport {
         }
     }
 
-    private TagTextLayout resolveTagTextLayout(String elementA,
-                                               List<String> elementAExtInfos,
-                                               String commonOrderId,
-                                               String elementB,
-                                               int textStartX,
-                                               int textHeight,
-                                               int maxContentWidthPx,
-                                               boolean hasRedoProductionPiece) {
-        FontMetrics metrics = createFontMetrics(new Font(TAG_TEXT_FONT, Font.PLAIN, textHeight));
-        List<String> tagTexts = buildTagTexts(elementA, elementAExtInfos, commonOrderId, elementB, hasRedoProductionPiece);
+    private TagTextLayout resolveTagTextLayout(List<String> tagTexts, int textStartX, Font font,
+                                               Font wrappedFont, int maxContentWidthPx) {
+        FontMetrics metrics = createFontMetrics(font);
         int singleRowEndX = textStartX + measureJoinedWidth(tagTexts, metrics);
         if (singleRowEndX <= maxContentWidthPx) {
             return new TagTextLayout(false, tagTexts, new ArrayList<>());
         }
-        FontMetrics wrappedMetrics = createFontMetrics(new Font(TAG_TEXT_FONT, Font.PLAIN, Math.max(mmToPx(WRAPPED_EXT_INFO_TEXT_HEIGHT_MM), 1)));
+        FontMetrics wrappedMetrics = createFontMetrics(wrappedFont);
         List<String> firstRow = new ArrayList<>();
         List<String> secondRow = new ArrayList<>();
         int firstRowWidth = 0;
@@ -271,25 +269,6 @@ public class CircleQrLayoutBuildServiceKernel extends LegacySupport {
             g.setColor(Color.BLACK);
             g.drawString(suffix, currentX, baselineY);
         }
-    }
-
-    private Font pickFont(int textHeight, String elementA, String elementB, List<String> extInfos) {
-        List<String> candidates = Arrays.asList("Microsoft YaHei", "SimHei", "Noto Sans CJK SC", "WenQuanYi Zen Hei", "Dialog");
-        StringBuilder allText = new StringBuilder();
-        if (elementA != null) allText.append(elementA);
-        if (elementB != null) allText.append(elementB);
-        if (extInfos != null) {
-            for (String ext : extInfos) {
-                if (ext != null) allText.append(ext);
-            }
-        }
-        for (String name : candidates) {
-            Font font = new Font(name, Font.PLAIN, textHeight);
-            if (font.canDisplayUpTo(allText.toString()) == -1) {
-                return font;
-            }
-        }
-        return new Font("Dialog", Font.PLAIN, textHeight);
     }
 
     private BufferedImage decodePngDataUri(String dataUri) {

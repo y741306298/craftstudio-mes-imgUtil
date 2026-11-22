@@ -52,9 +52,9 @@ class MesCompatibilityRendererTest {
     }
 
     @Test
-    void preservesLegacyBoldFontForTextItCanDisplay() {
-        Font legacy = new Font(Font.SANS_SERIF, Font.BOLD, 24);
-        assertSame(legacy, LegacySupport.resolveMarkFont(legacy, "MES 1234"));
+    void preservesAnExplicitBoldFontForTextItCanDisplay() {
+        Font preferred = new Font(Font.SANS_SERIF, Font.BOLD, 24);
+        assertSame(preferred, GraphicsTextFonts.resolve(preferred, "MES 1234"));
     }
 
     @Test
@@ -67,7 +67,7 @@ class MesCompatibilityRendererTest {
         var preferred = fonts.stream().filter(font -> font.canDisplay('A') && font.canDisplayUpTo(text) >= 0).findFirst();
         Assumptions.assumeTrue(preferred.isPresent());
 
-        Font selected = LegacySupport.resolveMarkFont(preferred.get(), text);
+        Font selected = GraphicsTextFonts.resolve(preferred.get(), text);
         assertEquals(-1, selected.canDisplayUpTo(text));
         assertEquals(24, selected.getSize());
         assertTrue(selected.isBold());
@@ -77,7 +77,7 @@ class MesCompatibilityRendererTest {
     void rejectsAProcessMarkWhenNoFontCanRenderItsText() {
         String unrenderable = new String(Character.toChars(0x10FFFF));
         IllegalStateException failure = assertThrows(IllegalStateException.class,
-                () -> LegacySupport.boldMarkFont(unrenderable, 24));
+                () -> GraphicsTextFonts.productionMark(unrenderable, 24));
         assertTrue(failure.getMessage().contains("U+10FFFF"));
     }
 
@@ -85,10 +85,16 @@ class MesCompatibilityRendererTest {
     void rendersDistinctChineseGlyphsForProcessMarks() throws Exception {
         Assumptions.assumeTrue(Arrays.stream(GraphicsEnvironment.getLocalGraphicsEnvironment().getAllFonts())
                 .anyMatch(font -> font.canDisplayUpTo("留白") < 0));
-        for (String operation : List.of("LIUBAI_TAG", "SPLICE_TEXT", "MARK_TEXT", "MARK_TWO_LINES")) {
-            var first = Map.<String, Object>of("width", 100, "height", 32, "text", "留");
-            var second = Map.<String, Object>of("width", 100, "height", 32, "text", "白");
-            assertFalse(Arrays.equals(render(operation, first), render(operation, second)), operation);
+        var parameters = new HashMap<String, Object>(Map.of("width", 100, "height", 32,
+                "stripWidth", 200, "stripHeight", 20));
+        for (String operation : List.of("LIUBAI_TAG", "SPLICE_TEXT", "MARK_TEXT", "MARK_TWO_LINES",
+                "CAIFU_TAG", "CIRCLE_TAG", "CROSS_TAG", "DOUBLE_TAG")) {
+            parameters.put("text", "留");
+            parameters.put("elementA", "留");
+            byte[] first = render(operation, parameters);
+            parameters.put("text", "白");
+            parameters.put("elementA", "白");
+            assertFalse(Arrays.equals(first, render(operation, parameters)), operation);
         }
     }
 

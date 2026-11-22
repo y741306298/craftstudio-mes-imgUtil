@@ -1,4 +1,6 @@
 package com.craftstudio.imgutil.infra.graphics.mes;
+
+import com.craftstudio.imgutil.infra.graphics.GraphicsTextFonts;
 import java.awt.*;
 import java.awt.geom.*;
 import java.awt.image.BufferedImage;
@@ -20,7 +22,6 @@ public class DoubleSideMountingLayoutBuildServiceKernel extends LegacySupport {
     private static final int EXTRA_INFO_GAP_MM = 5;
     private static final int NESTED_HEIGHT_EXPAND_THRESHOLD_MM = 2400;
     private static final int SIDE_EXPAND_MM = 6;
-    private static final String TAG_TEXT_FONT = "Source Han Sans SC VF";
     private static final String LEFT_ARROW_URL = "https://craftstudio-mes-test.oss-cn-hangzhou.aliyuncs.com/basetag/basetag-leftarrow.png";
     private static final String RIGHT_ARROW_URL = "https://craftstudio-mes-test.oss-cn-hangzhou.aliyuncs.com/basetag/basetag-rightarrow.png";
     public BufferedImage render(String businessId,
@@ -44,6 +45,13 @@ public class DoubleSideMountingLayoutBuildServiceKernel extends LegacySupport {
         int qrTopPx = canvasHeightPx - mmToPx(QR_BOTTOM_GAP_MM + QR_SIZE_MM);
         int bX = qrLeftPx + qrSizePx + mmToPx(ELEMENT_GAP_MM);
         int textHeight = Math.max(mmToPx(4), 1);
+        StringBuilder displayText = new StringBuilder();
+        displayText.append(extractDisplayText(elementB)).append(extractDisplayText(commonOrderId))
+                .append(extractDisplayText(elementA));
+        if (elementAExtInfos != null) {
+            elementAExtInfos.forEach(info -> displayText.append(extractDisplayText(info)));
+        }
+        Font font = GraphicsTextFonts.productionMark(displayText.toString(), textHeight);
 
         BufferedImage canvas = canvas(canvasWidthPx, canvasHeightPx, BufferedImage.TYPE_INT_RGB);
         Graphics2D g = canvas.createGraphics();
@@ -52,7 +60,7 @@ public class DoubleSideMountingLayoutBuildServiceKernel extends LegacySupport {
             g.fillRect(0, 0, canvasWidthPx, canvasHeightPx);
             g.setColor(Color.BLACK);
             g.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
-            g.setFont(new Font(TAG_TEXT_FONT, Font.PLAIN, textHeight));
+            g.setFont(font);
             FontMetrics fontMetrics = g.getFontMetrics();
             int textTopY = (canvasHeightPx - textHeight) / 2;
             int textBaseLineY = textTopY + ((textHeight - fontMetrics.getHeight()) / 2) + fontMetrics.getAscent();
@@ -152,25 +160,6 @@ public class DoubleSideMountingLayoutBuildServiceKernel extends LegacySupport {
             g.setColor(Color.BLACK);
             g.drawString(suffix, currentX, baselineY);
         }
-    }
-
-    private Font pickFont(int textHeight, String elementA, String elementB, List<String> extInfos) {
-        List<String> candidates = Arrays.asList("Microsoft YaHei", "SimHei", "Noto Sans CJK SC", "WenQuanYi Zen Hei", "Dialog");
-        StringBuilder allText = new StringBuilder();
-        if (elementA != null) allText.append(elementA);
-        if (elementB != null) allText.append(elementB);
-        if (extInfos != null) {
-            for (String ext : extInfos) {
-                if (ext != null) allText.append(ext);
-            }
-        }
-        for (String name : candidates) {
-            Font font = new Font(name, Font.PLAIN, textHeight);
-            if (font.canDisplayUpTo(allText.toString()) == -1) {
-                return font;
-            }
-        }
-        return new Font("Dialog", Font.PLAIN, textHeight);
     }
 
     private BufferedImage decodePngDataUri(String dataUri) {
