@@ -11,6 +11,7 @@ public abstract class LegacySupport implements AutoCloseable {
     private final List<BufferedImage> allocated = new ArrayList<>();
     private RenderLimits limits;
     public void configure(RenderLimits limits) { this.limits=limits; }
+
     protected BufferedImage canvas(int width, int height, int type) {
         limits.checkDimensions(width,height);
         BufferedImage image=new BufferedImage(width,height,type);allocated.add(image);return image;

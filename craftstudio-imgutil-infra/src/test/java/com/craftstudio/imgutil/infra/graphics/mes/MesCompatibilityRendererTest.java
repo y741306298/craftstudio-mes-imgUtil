@@ -11,6 +11,10 @@ import org.junit.jupiter.api.io.TempDir;
 import tools.jackson.databind.json.JsonMapper;
 import javax.imageio.ImageIO;
 import java.awt.Color;
+import java.awt.Font;
+import java.awt.GraphicsEnvironment;
+import java.awt.RenderingHints;
+import java.awt.image.BufferedImage;
 import java.io.*;
 import java.nio.file.Path;
 import java.util.*;
@@ -46,6 +50,83 @@ class MesCompatibilityRendererTest {
             var image=ImageIO.read(new ByteArrayInputStream(render(operation,params)));assertNotNull(image,operation);assertTrue(image.getWidth()>0,operation);
         }
     }
+
+    @Test
+    void preservesAnExplicitBoldFontForTextItCanDisplay() {
+        Font preferred = new Font(Font.SANS_SERIF, Font.BOLD, 24);
+        assertSame(preferred, GraphicsTextFonts.resolve(preferred, "MES 1234"));
+    }
+
+    @Test
+    void selectsAnInstalledFontThatCanDisplayTheEntireChineseMark() {
+        String text = "留白 1234.tif";
+        var environment = GraphicsEnvironment.getLocalGraphicsEnvironment();
+        var fonts = Arrays.stream(environment.getAvailableFontFamilyNames(Locale.ROOT))
+                .map(family -> new Font(family, Font.BOLD, 24)).toList();
+        Assumptions.assumeTrue(fonts.stream().anyMatch(font -> font.canDisplayUpTo(text) < 0));
+        var preferred = fonts.stream().filter(font -> font.canDisplay('A') && font.canDisplayUpTo(text) >= 0).findFirst();
+        Assumptions.assumeTrue(preferred.isPresent());
+
+        Font selected = GraphicsTextFonts.resolve(preferred.get(), text);
+        assertEquals(-1, selected.canDisplayUpTo(text));
+        assertEquals(24, selected.getSize());
+        assertTrue(selected.isBold());
+    }
+
+    @Test
+    void rejectsAProcessMarkWhenNoFontCanRenderItsText() {
+        String unrenderable = new String(Character.toChars(0x10FFFF));
+        IllegalStateException failure = assertThrows(IllegalStateException.class,
+                () -> GraphicsTextFonts.productionMark(unrenderable, 24));
+        assertTrue(failure.getMessage().contains("U+10FFFF"));
+    }
+
+    @Test
+    void rendersDistinctChineseGlyphsForProcessMarks() throws Exception {
+        Assumptions.assumeTrue(Arrays.stream(GraphicsEnvironment.getLocalGraphicsEnvironment().getAllFonts())
+                .anyMatch(font -> font.canDisplayUpTo("留白") < 0));
+        var parameters = new HashMap<String, Object>(Map.of("width", 100, "height", 32,
+                "stripWidth", 200, "stripHeight", 20));
+        for (String operation : List.of("LIUBAI_TAG", "SPLICE_TEXT", "MARK_TEXT", "MARK_TWO_LINES",
+                "CAIFU_TAG", "CIRCLE_TAG", "CROSS_TAG", "DOUBLE_TAG")) {
+            parameters.put("text", "留");
+            parameters.put("elementA", "留");
+            byte[] first = render(operation, parameters);
+            parameters.put("text", "白");
+            parameters.put("elementA", "白");
+            assertFalse(Arrays.equals(first, render(operation, parameters)), operation);
+        }
+    }
+
+    @Test
+    void liubaiUsesTheElementFFontForMeasurementAndDrawing() throws Exception {
+        int height = (int) Math.ceil(10 * 300 / 25.4);
+        int padding = (int) Math.ceil(300 / 25.4);
+        Font font = new Font("Source Han Sans SC VF", Font.PLAIN, (int) Math.floor(height * 0.72));
+        String text = font.canDisplayUpTo("留白 AaWwx 0123.tif") < 0 ? "留白 AaWwx 0123.tif" : "AaWwx 0123.tif";
+        BufferedImage tag = ImageIO.read(new ByteArrayInputStream(render("LIUBAI_TAG", Map.of("text", text, "edgeSize", 10))));
+
+        BufferedImage reference = new BufferedImage(tag.getWidth(), height, BufferedImage.TYPE_INT_ARGB);
+        var graphics = reference.createGraphics();
+        try {
+            graphics.setFont(font);
+            assertEquals(graphics.getFontMetrics().stringWidth(text) + 2 * padding, tag.getWidth());
+            graphics.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+            graphics.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
+            var metrics = graphics.getFontMetrics();
+            int baseline = Math.max(metrics.getAscent(), Math.min(height - 1,
+                    (height + metrics.getAscent() - metrics.getDescent()) / 2));
+            graphics.setColor(Color.BLACK);
+            graphics.drawString(text, padding, baseline);
+        } finally {
+            graphics.dispose();
+        }
+        assertEquals(height, tag.getHeight());
+        int width = tag.getWidth();
+        assertArrayEquals(reference.getRGB(0, 0, width, height, null, 0, width),
+                tag.getRGB(0, 0, width, height, null, 0, width));
+    }
+
     private Map<String,Object> doubleLabel(boolean rotate) {
         return new HashMap<>(Map.of("stripWidth",300,"stripHeight",30,"elementA","A-001",
                 "elementB","001.plt","rotate180",rotate));

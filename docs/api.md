@@ -65,7 +65,7 @@
 | `background` | 默认 `transparent`；颜色只接受 #RRGGBB 或 transparent |
 | `strokeMm` | 描边宽度；0 表示最小 1px |
 | `lines` | LABEL 必填；最多 32 行，每行最多 2048 字符 |
-| `fontFamily` / `fontSizeMm` / `bold` | 默认 SansSerif、自动大小、false；文字超出画布会缩小 |
+| `fontFamily` / `fontSizeMm` / `bold` | 默认 Source Han Sans SC VF、自动大小、false。优先使用指定字体，缺字时选择可完整显示文字的字体。文字超出画布会缩小 |
 | `stripeMm` / `verticalStripes` | 条带宽度，0 表示 1px；默认横条，交替使用前景色与白色 |
 | `rotationDegrees` | -360 到 360，默认 0，顺时针旋转；输出画布随之扩大 |
 | `margins` | BORDER 的 left/top/right/bottom 内框边距，默认 0 |

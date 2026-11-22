@@ -1,4 +1,6 @@
 package com.craftstudio.imgutil.infra.graphics.mes;
+
+import com.craftstudio.imgutil.infra.graphics.GraphicsTextFonts;
 import java.awt.*;
 import java.awt.geom.*;
 import java.awt.image.BufferedImage;
@@ -14,13 +16,14 @@ public class SpliceRasterKernel extends LegacySupport {
     public BufferedImage createTextImage(double widthMm, double heightMm, String text, Color textColor) {
         int width = convertTextMmToPixels(widthMm);
         int height = convertTextMmToPixels(heightMm);
+        Font font = GraphicsTextFonts.productionMark(text, Math.max(8, height - convertTextMmToPixels(1D)));
         BufferedImage image = canvas(width, height, BufferedImage.TYPE_INT_ARGB);
         Graphics2D g = image.createGraphics();
         g.setComposite(AlphaComposite.Clear);
         g.fillRect(0, 0, width, height);
         g.setComposite(AlphaComposite.SrcOver);
         g.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
-        g.setFont(new Font("SansSerif", Font.BOLD, Math.max(8, height - convertTextMmToPixels(1D))));
+        g.setFont(font);
         FontMetrics fm = g.getFontMetrics();
         int textW = fm.stringWidth(text);
         int textH = fm.getAscent();
