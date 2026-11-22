@@ -1,6 +1,8 @@
 package com.craftstudio.imgutil.infra.graphics.mes;
 
 import com.craftstudio.imgutil.infra.graphics.RenderLimits;
+import java.awt.Font;
+import java.awt.GraphicsEnvironment;
 import java.awt.image.BufferedImage;
 import java.io.*;
 import java.util.*;
@@ -8,9 +10,38 @@ import javax.imageio.ImageIO;
 
 /** Validate dimensions and release legacy image allocations within one isolated task. */
 public abstract class LegacySupport implements AutoCloseable {
+    private static final List<String> MARK_FONT_FALLBACKS = List.of(
+            "Source Han Sans SC VF", "Source Han Sans SC", "Noto Sans CJK SC", "Noto Sans SC",
+            "Microsoft YaHei", "SimHei", "WenQuanYi Zen Hei");
+
     private final List<BufferedImage> allocated = new ArrayList<>();
     private RenderLimits limits;
     public void configure(RenderLimits limits) { this.limits=limits; }
+
+    protected static Font boldMarkFont(String text, int size) {
+        return resolveMarkFont(new Font(Font.SANS_SERIF, Font.BOLD, size), text);
+    }
+
+    static Font resolveMarkFont(Font preferred, String text) {
+        int missing = preferred.canDisplayUpTo(text);
+        if (missing < 0) {
+            return preferred;
+        }
+
+        // Fonts registered in Java can be used by family name even when absent from a logical font's fallback.
+        Set<String> families = new LinkedHashSet<>(MARK_FONT_FALLBACKS);
+        Collections.addAll(families, GraphicsEnvironment.getLocalGraphicsEnvironment()
+                .getAvailableFontFamilyNames(Locale.ROOT));
+        for (String family : families) {
+            Font candidate = new Font(family, preferred.getStyle(), preferred.getSize());
+            if (family.equalsIgnoreCase(candidate.getFamily(Locale.ROOT)) && candidate.canDisplayUpTo(text) < 0) {
+                return candidate;
+            }
+        }
+        throw new IllegalStateException(String.format(Locale.ROOT,
+                "找不到可完整显示工艺标记文字的字体（原字体首个缺字 U+%04X）", text.codePointAt(missing)));
+    }
+
     protected BufferedImage canvas(int width, int height, int type) {
         limits.checkDimensions(width,height);
         BufferedImage image=new BufferedImage(width,height,type);allocated.add(image);return image;

@@ -14,13 +14,14 @@ public class SpliceMarkKernel extends LegacySupport {
         try {
             int w = (int) Math.ceil(width);
             int h = (int) Math.ceil(height);
+            Font font = boldMarkFont(text, Math.max(8, h / 2 - 2));
             BufferedImage image = canvas(w, h, BufferedImage.TYPE_INT_ARGB);
             Graphics2D g = image.createGraphics();
             g.setComposite(AlphaComposite.Clear);
             g.fillRect(0, 0, w, h);
             g.setComposite(AlphaComposite.SrcOver);
             g.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
-            g.setFont(new Font("SansSerif", Font.BOLD, Math.max(8, h / 2 - 2)));
+            g.setFont(font);
             FontMetrics fm = g.getFontMetrics();
             int textW = fm.stringWidth(text);
             int textH = fm.getAscent();
@@ -39,13 +40,14 @@ public class SpliceMarkKernel extends LegacySupport {
         }
     }
     public BufferedImage createSingleLineTextImage(int w, int h, String text, Color textColor) {
+        Font font = boldMarkFont(text, Math.max(8, h - 2));
         BufferedImage image = canvas(w, h, BufferedImage.TYPE_INT_ARGB);
         Graphics2D g = image.createGraphics();
         g.setComposite(AlphaComposite.Clear);
         g.fillRect(0, 0, w, h);
         g.setComposite(AlphaComposite.SrcOver);
         g.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
-        g.setFont(new Font("SansSerif", Font.BOLD, Math.max(8, h - 2)));
+        g.setFont(font);
         FontMetrics fm = g.getFontMetrics();
         int textW = fm.stringWidth(text);
         int textH = fm.getAscent();

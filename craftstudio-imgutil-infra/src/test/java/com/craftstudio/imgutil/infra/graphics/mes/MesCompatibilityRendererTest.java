@@ -11,6 +11,8 @@ import org.junit.jupiter.api.io.TempDir;
 import tools.jackson.databind.json.JsonMapper;
 import javax.imageio.ImageIO;
 import java.awt.Color;
+import java.awt.Font;
+import java.awt.GraphicsEnvironment;
 import java.io.*;
 import java.nio.file.Path;
 import java.util.*;
@@ -46,6 +48,48 @@ class MesCompatibilityRendererTest {
             var image=ImageIO.read(new ByteArrayInputStream(render(operation,params)));assertNotNull(image,operation);assertTrue(image.getWidth()>0,operation);
         }
     }
+
+    @Test
+    void preservesLegacyBoldFontForTextItCanDisplay() {
+        Font legacy = new Font(Font.SANS_SERIF, Font.BOLD, 24);
+        assertSame(legacy, LegacySupport.resolveMarkFont(legacy, "MES 1234"));
+    }
+
+    @Test
+    void selectsAnInstalledFontThatCanDisplayTheEntireChineseMark() {
+        String text = "留白 1234.tif";
+        var environment = GraphicsEnvironment.getLocalGraphicsEnvironment();
+        var fonts = Arrays.stream(environment.getAvailableFontFamilyNames(Locale.ROOT))
+                .map(family -> new Font(family, Font.BOLD, 24)).toList();
+        Assumptions.assumeTrue(fonts.stream().anyMatch(font -> font.canDisplayUpTo(text) < 0));
+        var preferred = fonts.stream().filter(font -> font.canDisplay('A') && font.canDisplayUpTo(text) >= 0).findFirst();
+        Assumptions.assumeTrue(preferred.isPresent());
+
+        Font selected = LegacySupport.resolveMarkFont(preferred.get(), text);
+        assertEquals(-1, selected.canDisplayUpTo(text));
+        assertEquals(24, selected.getSize());
+        assertTrue(selected.isBold());
+    }
+
+    @Test
+    void rejectsAProcessMarkWhenNoFontCanRenderItsText() {
+        String unrenderable = new String(Character.toChars(0x10FFFF));
+        IllegalStateException failure = assertThrows(IllegalStateException.class,
+                () -> LegacySupport.boldMarkFont(unrenderable, 24));
+        assertTrue(failure.getMessage().contains("U+10FFFF"));
+    }
+
+    @Test
+    void rendersDistinctChineseGlyphsForProcessMarks() throws Exception {
+        Assumptions.assumeTrue(Arrays.stream(GraphicsEnvironment.getLocalGraphicsEnvironment().getAllFonts())
+                .anyMatch(font -> font.canDisplayUpTo("留白") < 0));
+        for (String operation : List.of("LIUBAI_TAG", "SPLICE_TEXT", "MARK_TEXT", "MARK_TWO_LINES")) {
+            var first = Map.<String, Object>of("width", 100, "height", 32, "text", "留");
+            var second = Map.<String, Object>of("width", 100, "height", 32, "text", "白");
+            assertFalse(Arrays.equals(render(operation, first), render(operation, second)), operation);
+        }
+    }
+
     private Map<String,Object> doubleLabel(boolean rotate) {
         return new HashMap<>(Map.of("stripWidth",300,"stripHeight",30,"elementA","A-001",
                 "elementB","001.plt","rotate180",rotate));
