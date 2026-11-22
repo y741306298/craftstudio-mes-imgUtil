@@ -10,13 +10,18 @@ import javax.imageio.ImageIO;
 
 /** Validate dimensions and release legacy image allocations within one isolated task. */
 public abstract class LegacySupport implements AutoCloseable {
+    private static final String ELEMENT_F_FONT_FAMILY = "Source Han Sans SC VF";
     private static final List<String> MARK_FONT_FALLBACKS = List.of(
-            "Source Han Sans SC VF", "Source Han Sans SC", "Noto Sans CJK SC", "Noto Sans SC",
+            ELEMENT_F_FONT_FAMILY, "Source Han Sans SC", "Noto Sans CJK SC", "Noto Sans SC",
             "Microsoft YaHei", "SimHei", "WenQuanYi Zen Hei");
 
     private final List<BufferedImage> allocated = new ArrayList<>();
     private RenderLimits limits;
     public void configure(RenderLimits limits) { this.limits=limits; }
+
+    protected static Font elementFFont(int size) {
+        return new Font(ELEMENT_F_FONT_FAMILY, Font.PLAIN, size);
+    }
 
     protected static Font boldMarkFont(String text, int size) {
         return resolveMarkFont(new Font(Font.SANS_SERIF, Font.BOLD, size), text);

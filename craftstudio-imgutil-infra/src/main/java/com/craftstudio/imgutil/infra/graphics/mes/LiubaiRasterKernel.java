@@ -108,7 +108,7 @@ public class LiubaiRasterKernel extends LegacySupport {
         int heightPx = convertMmToPixels(edgeSizeMm, LIUBAI_TAG_PNG_DPI);
         int baseFontSize = Math.max(12, (int) Math.floor(heightPx * 0.72D));
         int fontSize = Math.max(1, (int) Math.round(baseFontSize * liubaiTagFontScale()));
-        Font font = boldMarkFont(text, fontSize);
+        Font font = resolveMarkFont(elementFFont(fontSize), text);
         FontMetrics metrics = fontMetrics(font);
         int paddingPx = Math.max(4, convertMmToPixels(1D, LIUBAI_TAG_PNG_DPI));
         List<Color> colors = liubaiTagTextColors();

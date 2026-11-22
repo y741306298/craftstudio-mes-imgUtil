@@ -13,6 +13,8 @@ import javax.imageio.ImageIO;
 import java.awt.Color;
 import java.awt.Font;
 import java.awt.GraphicsEnvironment;
+import java.awt.RenderingHints;
+import java.awt.image.BufferedImage;
 import java.io.*;
 import java.nio.file.Path;
 import java.util.*;
@@ -88,6 +90,35 @@ class MesCompatibilityRendererTest {
             var second = Map.<String, Object>of("width", 100, "height", 32, "text", "白");
             assertFalse(Arrays.equals(render(operation, first), render(operation, second)), operation);
         }
+    }
+
+    @Test
+    void liubaiUsesTheElementFFontForMeasurementAndDrawing() throws Exception {
+        int height = (int) Math.ceil(10 * 300 / 25.4);
+        int padding = (int) Math.ceil(300 / 25.4);
+        Font font = new Font("Source Han Sans SC VF", Font.PLAIN, (int) Math.floor(height * 0.72));
+        String text = font.canDisplayUpTo("留白 AaWwx 0123.tif") < 0 ? "留白 AaWwx 0123.tif" : "AaWwx 0123.tif";
+        BufferedImage tag = ImageIO.read(new ByteArrayInputStream(render("LIUBAI_TAG", Map.of("text", text, "edgeSize", 10))));
+
+        BufferedImage reference = new BufferedImage(tag.getWidth(), height, BufferedImage.TYPE_INT_ARGB);
+        var graphics = reference.createGraphics();
+        try {
+            graphics.setFont(font);
+            assertEquals(graphics.getFontMetrics().stringWidth(text) + 2 * padding, tag.getWidth());
+            graphics.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+            graphics.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
+            var metrics = graphics.getFontMetrics();
+            int baseline = Math.max(metrics.getAscent(), Math.min(height - 1,
+                    (height + metrics.getAscent() - metrics.getDescent()) / 2));
+            graphics.setColor(Color.BLACK);
+            graphics.drawString(text, padding, baseline);
+        } finally {
+            graphics.dispose();
+        }
+        assertEquals(height, tag.getHeight());
+        int width = tag.getWidth();
+        assertArrayEquals(reference.getRGB(0, 0, width, height, null, 0, width),
+                tag.getRGB(0, 0, width, height, null, 0, width));
     }
 
     private Map<String,Object> doubleLabel(boolean rotate) {

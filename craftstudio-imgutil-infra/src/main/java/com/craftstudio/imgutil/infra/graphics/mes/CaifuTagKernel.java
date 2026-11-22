@@ -22,7 +22,6 @@ public class CaifuTagKernel extends LegacySupport {
     private static final double MM_PER_INCH = 25.4D;
     private static final int TAG_TEXT_LEFT_MM = 30;
     private static final int TAG_TEXT_GAP_MM = 5;
-    private static final String TAG_TEXT_FONT = "Source Han Sans SC VF";
     public BufferedImage render(String elementA, int stripWidth, boolean rotate180) {
         int canvasWidthPx = mmToPx(stripWidth);
         int canvasHeightPx = mmToPx(OPEN_BACK_TAG_HEIGHT_MM);
@@ -34,7 +33,7 @@ public class CaifuTagKernel extends LegacySupport {
             g.fillRect(0, 0, canvasWidthPx, canvasHeightPx);
             g.setColor(Color.BLACK);
             g.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
-            g.setFont(new Font(TAG_TEXT_FONT, Font.PLAIN, textHeight));
+            g.setFont(elementFFont(textHeight));
             FontMetrics fontMetrics = g.getFontMetrics();
             int baselineY = ((canvasHeightPx - textHeight) / 2) + ((textHeight - fontMetrics.getHeight()) / 2) + fontMetrics.getAscent();
             int currentX = mmToPx(TAG_TEXT_LEFT_MM);
