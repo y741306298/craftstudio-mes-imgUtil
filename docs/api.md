@@ -20,7 +20,7 @@
 
 拼接零件的 PNG 素材、旋转和全部 SVG 标记使用一次 `SPLICE_PIECE` 任务完成，成功回调的 artifact.assets 返回8个素材对象名，capabilities 中 `splicePieceVersion=1` 表示支持。参数示例及上线顺序见 [MES 异步接口文档](mes-async-api.md)。
 
-生产 MES 使用主动回调：在同一请求增加 `callbackConfig: {callbackUrl, callbackCustomValue}`。图形服务完成后签名 POST 最终结果；成功或失败都回调，投递失败最多重试10次并持久化状态。MES 回调格式和验签规则见 [异步接口文档](mes-async-api.md)。以下 GET 查询说明用于人工排障或未配置回调的独立调用方。
+生产 MES 使用主动回调：在同一请求增加 `callbackConfig: {callbackUrl, callbackCustomValue}`。图形服务完成后签名 POST 最终结果；成功或失败都回调，投递失败按 5 秒、10 秒、30 秒、1 分钟、5 分钟的间隔最多重试 5 次并持久化状态。MES 回调格式和验签规则见 [异步接口文档](mes-async-api.md)。以下 GET 查询说明用于人工排障或未配置回调的独立调用方。
 
 状态为 `QUEUED → RUNNING → SUCCEEDED / FAILED / TIMED_OUT`，重启中断的任务转为 `FAILED`。客户端每隔 0.5–2 秒查询一次，设置整体截止时间；不要在 MES 的 Web 请求线程中无限等待。重复提交时必须保持参数一致；幂等保留期与任务保留期相同。
 

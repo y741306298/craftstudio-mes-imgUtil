@@ -55,7 +55,7 @@ docker compose up -d --build
 
 拼接零件使用 `SPLICE_PIECE`：PNG 条纹、文字、旋转、全部 SVG 标记和最终合并上传在同一任务完成，一次回调返回蒙版与8个素材对象名，capabilities 返回 `splicePieceVersion=1`。
 
-MES 调用现已统一到 `AlgorithmCoreApiService`：POST 携带 `callbackConfig`，HTTP 202 后由图形服务主动回调最终结果，不再轮询任务状态。回调包含 HMAC-SHA256 签名，投递失败持久化退避重试，最多10次。`callbackProtocolVersion=1` 可在 capabilities 查询；未配置回调的手动任务仍可通过 GET 查询。
+MES 调用现已统一到 `AlgorithmCoreApiService`：POST 携带 `callbackConfig`，HTTP 202 后由图形服务主动回调最终结果，不再轮询任务状态。回调包含 HMAC-SHA256 签名，投递失败后按 5 秒、10 秒、30 秒、1 分钟、5 分钟的间隔最多重试 5 次，重试状态持久化。`callbackProtocolVersion=1` 可在 capabilities 查询；未配置回调的手动任务仍可通过 GET 查询。
 
 ## 接口和示例
 
