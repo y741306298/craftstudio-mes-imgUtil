@@ -68,7 +68,6 @@ public class AppGraphicsTaskService {
         }
         if (executor.isShutdown()) throw new TaskException(503, "SERVICE_STOPPING", "图形服务正在停止，请稍后重试");
         renderer.validate(request);
-        if (!artifacts.hasCapacity()) throw new TaskException(503, "STORAGE_FULL", "存储容量不足，请稍后重试");
         long now = System.currentTimeMillis();
         GraphicsJob job = new GraphicsJob(request.requestId(), fingerprint, JobStatus.QUEUED, now, now,
                 null, null, null, request);
@@ -115,11 +114,6 @@ public class AppGraphicsTaskService {
                 started = true;
                 deadline = timer.schedule(() -> timeout(id, worker), properties.taskTimeoutSeconds(), TimeUnit.SECONDS);
             }
-            // Earlier jobs may have filled local storage since this request was accepted.
-            if (!artifacts.hasCapacity()) {
-                fail(id, "STORAGE_FULL", "存储容量不足，请稍后重试");
-                return;
-            }
             temporary = artifacts.createTemporary(id);
             RenderResult result;
             try (var out = new LimitedOutputStream(Files.newOutputStream(temporary), properties.maxArtifactBytes())) { result = renderer.render(request, out); }
@@ -131,15 +125,15 @@ public class AppGraphicsTaskService {
             }
         } catch (Exception e) {
             log.error("图形任务失败: {}", id, e);
-            fail(id, e instanceof IllegalArgumentException ? "INVALID_GRAPHICS" : "RENDER_FAILED",
-                    e instanceof IllegalArgumentException ? e.getMessage() : "图形处理失败，请检查服务日志");
+            synchronized (this) {
+                GraphicsJob job = find(id);
+                if (!job.status().terminal()) jobs.save(job.transition(JobStatus.FAILED, null,
+                        e instanceof IllegalArgumentException ? "INVALID_GRAPHICS" : "RENDER_FAILED",
+                        e instanceof IllegalArgumentException ? e.getMessage() : "图形处理失败，请检查服务日志"));
+            }
         } finally {
             if (started) finishExecution(id, temporary, deadline);
         }
-    }
-    private synchronized void fail(String id, String code, String message) {
-        GraphicsJob job = find(id);
-        if (!job.status().terminal()) jobs.save(job.transition(JobStatus.FAILED, null, code, message));
     }
     private void finishExecution(String id, Path temporary, ScheduledFuture<?> deadline) {
         if (deadline != null) deadline.cancel(false);

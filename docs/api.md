@@ -105,9 +105,9 @@ EDIT 只接收标准 SVG 命名空间，根节点必须有数值宽高（可带 
 | 409 IDEMPOTENCY_CONFLICT | 相同编号已绑定不同参数；使用新编号 |
 | 409 ARTIFACT_NOT_READY | 等待成功或检查失败原因 |
 | 413 REQUEST_TOO_LARGE | 减小内联 SVG/请求体 |
-| 503 STORAGE_FULL | 清理/扩容本地存储后重试 |
+| 503 SERVICE_STOPPING | 服务恢复后使用同一编号重试 |
 
-异步失败在查询结果中返回 `errorCode`，例如 INVALID_GRAPHICS、RENDER_FAILED、TASK_TIMEOUT、SERVICE_RESTARTED。排队期间本地存储达到准入阈值时，任务执行前会以 STORAGE_FULL 结束。查询本身仍返回 200。网络不确定时先用原编号查询或重发，避免重复生成。
+异步失败在查询结果中返回 `errorCode`，例如 INVALID_GRAPHICS、RENDER_FAILED、TASK_TIMEOUT、SERVICE_RESTARTED。查询本身仍返回 200。网络不确定时先用原编号查询或重发，避免重复生成。
 
 DOUBLE_TAG 的 qrDataUri 可省略。双面对裱固定箭头由 MES 作为独立 mark 提交；旧版 MES 将固定箭头 URL 误放到二维码位时兼容忽略该占位值，保持原布局。图形服务不会下载这些 URL；实际二维码仍使用 qr-content 或 PNG data URI。
 

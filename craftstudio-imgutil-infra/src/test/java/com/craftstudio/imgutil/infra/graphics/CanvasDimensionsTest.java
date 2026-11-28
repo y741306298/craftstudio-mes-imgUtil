@@ -16,7 +16,7 @@ class CanvasDimensionsTest {
     @TempDir Path directory;
     private GraphicsProperties properties(int dimension, long pixels) {
         return new GraphicsProperties("",directory.toString(),1,1,30,24,dimension,pixels,600,
-                1048576,33554432,20000,64,2147483648L,null);
+                1048576,33554432,20000,64,null);
     }
     @Test void rendersAboveLegacyLimitsWithoutAllocatingAnUnnecessarilyLargeImage() throws Exception {
         var properties=properties(4,4);

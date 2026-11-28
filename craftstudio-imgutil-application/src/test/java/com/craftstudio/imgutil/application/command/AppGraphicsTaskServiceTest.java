@@ -16,7 +16,7 @@ import static org.junit.jupiter.api.Assertions.*;
 
 class AppGraphicsTaskServiceTest {
     @TempDir Path directory;
-    private GraphicsProperties properties(int timeout) { return new GraphicsProperties("", directory.toString(), 1, 1, timeout, 1, 8192, 8000000, 600, 1048576, 1024, 20000, 64, 10485760, null); }
+    private GraphicsProperties properties(int timeout) { return new GraphicsProperties("", directory.toString(), 1, 1, timeout, 1, 8192, 8000000, 600, 1048576, 1024, 20000, 64, null); }
     private GraphicsRequest request(String id, double width) { return new GraphicsRequest(id, new RasterSpec(RasterSpec.Kind.SOLID, width, 1, 150, null, null, 0, 0, null, false, null, 0, false, 0, null, 0), null); }
     private GraphicsRenderer renderer(CountDownLatch started, CountDownLatch release, boolean ignoreInterrupt) {
         return new GraphicsRenderer() {
@@ -115,28 +115,6 @@ class AppGraphicsTaskServiceTest {
         } finally {
             resumed.close();
             reopenedStore.close();
-        }
-    }
-    @Test void checksStorageAgainWhenAQueuedTaskStarts() throws Exception {
-        var props = properties(10);
-        var mapper = new JsonMapper();
-        var repo = new FileJobRepository(props, mapper);
-        var store = new FileArtifactStore(props);
-        var started = new CountDownLatch(1);
-        var release = new CountDownLatch(1);
-        var service = new AppGraphicsTaskService(repo, store, renderer(started, release, false), props, mapper);
-        try {
-            service.submit(request("running", 1));
-            assertTrue(started.await(2, TimeUnit.SECONDS));
-            assertEquals(JobStatus.QUEUED, service.submit(request("queued", 1)).status());
-            Files.write(directory.resolve("storage-usage"), new byte[(int) props.maxStorageBytes()]);
-            assertEquals(503, assertThrows(TaskException.class, () -> service.submit(request("new", 1))).status());
-            release.countDown();
-            assertEquals("STORAGE_FULL", await(service, "queued", JobStatus.FAILED).errorCode());
-        } finally {
-            release.countDown();
-            service.close();
-            store.close();
         }
     }
     @Test void recoversInterruptedJobsAndCleansExpiredResults() throws Exception {

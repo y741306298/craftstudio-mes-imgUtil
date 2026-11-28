@@ -11,5 +11,4 @@ public interface ArtifactStore {
     }
     Path resolve(String id, String filename);
     void delete(String id) throws Exception;
-    boolean hasCapacity();
 }

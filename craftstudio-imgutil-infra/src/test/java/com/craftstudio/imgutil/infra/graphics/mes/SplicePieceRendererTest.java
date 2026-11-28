@@ -25,7 +25,7 @@ class SplicePieceRendererTest {
     private RenderLimits limits;
     @BeforeEach void setup() throws Exception {
         properties = new GraphicsProperties("key", directory.toString(), 1, 16, 30, 24, 8192, 8000000, 600,
-                1048576, 33554432, 20000, 64, 2147483648L, null);
+                1048576, 33554432, 20000, 64, null);
         local = new FileArtifactStore(properties); limits = new RenderLimits(properties);
         ArtifactStore store = new ArtifactStore() {
             public Path createTemporary(String id) throws Exception { return local.createTemporary(id); }
@@ -37,7 +37,6 @@ class SplicePieceRendererTest {
             }
             public Path resolve(String id,String name) { return local.resolve(id,name); }
             public void delete(String id) throws Exception { local.delete(id); }
-            public boolean hasCapacity() { return true; }
         };
         renderer = new SplicePieceRenderer(limits,properties,store,new MesSvgRenderer(new DomSvgEditor(properties)));
     }

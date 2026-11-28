@@ -12,7 +12,7 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 class LocalGraphicsRendererTest {
-    private final GraphicsProperties properties = new GraphicsProperties("", "data", 2, 16, 30, 24, 8192, 8000000, 600, 1048576, 33554432, 20000, 64, 2147483648L, null);
+    private final GraphicsProperties properties = new GraphicsProperties("", "data", 2, 16, 30, 24, 8192, 8000000, 600, 1048576, 33554432, 20000, 64, null);
     private final AwtRasterRenderer raster = new AwtRasterRenderer(new RenderLimits(properties), properties);
     private final DomSvgEditor svg = new DomSvgEditor(properties);
 

@@ -8,9 +8,7 @@ import com.craftstudio.imgutil.infra.config.GraphicsProperties;
 import jakarta.annotation.PreDestroy;
 import org.springframework.stereotype.Component;
 import org.springframework.context.annotation.DependsOn;
-import java.io.IOException;
 import java.nio.file.*;
-import java.nio.file.attribute.BasicFileAttributes;
 import java.security.MessageDigest;
 import java.util.HexFormat;
 import java.util.UUID;
@@ -22,11 +20,13 @@ public class FileArtifactStore implements ArtifactStore {
     private static final Pattern ARTIFACT_FILENAME = Pattern.compile(
             "(?:result|[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12})\\.(?:png|svg)");
     private final GraphicsProperties properties;
-    private final Path root, artifacts, temporary;
+    private final Path artifacts, temporary;
     private final OSS oss;
     public FileArtifactStore(GraphicsProperties properties) throws Exception {
         this.properties = properties;
-        root = Path.of(properties.dataDirectory()).toAbsolutePath(); artifacts = root.resolve("artifacts"); temporary = root.resolve("tmp");
+        Path root = Path.of(properties.dataDirectory()).toAbsolutePath();
+        artifacts = root.resolve("artifacts");
+        temporary = root.resolve("tmp");
         Files.createDirectories(artifacts); Files.createDirectories(temporary);
         try (var leftovers = Files.newDirectoryStream(temporary)) { for (Path p : leftovers) Files.deleteIfExists(p); }
         if (properties.oss() != null && properties.oss().enabled()) {
@@ -73,29 +73,6 @@ public class FileArtifactStore implements ArtifactStore {
             try (var files = Files.newDirectoryStream(directory)) { for (Path p : files) Files.deleteIfExists(p); }
             Files.deleteIfExists(directory);
         }
-    }
-    @Override public boolean hasCapacity() {
-        long reserve = (long) properties.maxArtifactBytes() * (properties.workers() + 1L);
-        long limit = properties.maxStorageBytes() - reserve;
-        try {
-            if (limit < 0 || Files.getFileStore(root).getUsableSpace() <= reserve) return false;
-            var usage = new SimpleFileVisitor<Path>() {
-                long used;
-
-                @Override public FileVisitResult visitFile(Path path, BasicFileAttributes attributes) {
-                    if (attributes.isRegularFile()) used += attributes.size();
-                    return used > limit ? FileVisitResult.TERMINATE : FileVisitResult.CONTINUE;
-                }
-
-                @Override public FileVisitResult visitFileFailed(Path path, IOException error) throws IOException {
-                    // Renderers can move temporary files while the capacity check is walking the data directory.
-                    if (error instanceof NoSuchFileException) return FileVisitResult.CONTINUE;
-                    throw error;
-                }
-            };
-            Files.walkFileTree(root, usage);
-            return usage.used <= limit;
-        } catch (IOException e) { return false; }
     }
     private String key(String id, String filename) {
         String prefix = properties.oss().prefix();

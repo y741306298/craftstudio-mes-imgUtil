@@ -25,7 +25,7 @@ class MesCompatibilityRendererTest {
     private MesCompatibilityRenderer renderer;
     private FileArtifactStore store;
     @BeforeEach void setup()throws Exception{
-        var properties=new GraphicsProperties("",directory.toString(),2,16,30,24,8192,8000000,600,1048576,33554432,20000,64,2147483648L,null);
+        var properties=new GraphicsProperties("",directory.toString(),2,16,30,24,8192,8000000,600,1048576,33554432,20000,64,null);
         store=new FileArtifactStore(properties);
         renderer=new MesCompatibilityRenderer(new RenderLimits(properties),properties,store,new FileJobRepository(properties,new JsonMapper()),new MesSvgRenderer(new DomSvgEditor(properties)));
     }

@@ -22,7 +22,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @SpringBootTest(properties={"graphics.callback-dispatch-ms=50", "graphics.workers=1", "graphics.queue-capacity=16",
         "graphics.task-timeout-seconds=30", "graphics.retention-hours=24", "graphics.max-dpi=600", "graphics.max-request-bytes=1048576",
         "graphics.max-artifact-bytes=33554432", "graphics.max-svg-nodes=20000", "graphics.max-svg-depth=64",
-        "graphics.max-storage-bytes=2147483648"})
+        "graphics.max-storage-bytes=67108864"})
 @AutoConfigureMockMvc
 @DirtiesContext(classMode=DirtiesContext.ClassMode.AFTER_CLASS)
 class SplicePieceApiTest {
@@ -62,6 +62,8 @@ class SplicePieceApiTest {
     }
     @Autowired MockMvc mvc;
     @Test void oneSubmissionUploadsAllAssetsAndMaskThenSendsOneSignedCallback()throws Exception{
+        // The old 64 MiB reservation rejected submissions as soon as this directory contained file data.
+        Files.writeString(DATA.resolve("existing-data"), "occupied");
         var mapper=new JsonMapper();
         String request=mapper.writeValueAsString(Map.of("requestId","whole-piece","mes",Map.of("operation","SPLICE_PIECE","parameters",Map.of(
                 "groupText","618#1-2","artifactBaseUrl","https://bucket.example.com","pieceMongoId","piece",

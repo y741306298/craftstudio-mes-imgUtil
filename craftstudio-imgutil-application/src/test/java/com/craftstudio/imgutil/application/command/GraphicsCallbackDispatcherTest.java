@@ -32,7 +32,7 @@ class GraphicsCallbackDispatcherTest {
     private final AtomicReference<String> payload=new AtomicReference<>();
     private final AtomicReference<String> signature=new AtomicReference<>();
     @BeforeEach void setup()throws Exception{
-        properties=new GraphicsProperties("secret",root.toString(),1,1,30,24,8192,8000000,600,1048576,33554432,20000,64,2147483648L,null);
+        properties=new GraphicsProperties("secret",root.toString(),1,1,30,24,8192,8000000,600,1048576,33554432,20000,64,null);
         jobs=new FileJobRepository(properties,mapper);callbacks=new FileCallbackRepository(properties,mapper);dispatcher=new GraphicsCallbackDispatcher(callbacks,jobs,properties,mapper);
         server=HttpServer.create(new InetSocketAddress("127.0.0.1",0),0);
         server.createContext("/callback",exchange->{payload.set(new String(exchange.getRequestBody().readAllBytes(),StandardCharsets.UTF_8));signature.set(exchange.getRequestHeaders().getFirst("X-Graphics-Signature"));calls.incrementAndGet();exchange.sendResponseHeaders(status.get(),-1);exchange.close();});server.start();

@@ -7,7 +7,7 @@
 ```text
 craftstudio-imgutil-interfaces   HTTP 接口、鉴权、请求体限制、启动配置
             ↓
-craftstudio-imgutil-application  任务编排、幂等、有界队列、超时及清理
+craftstudio-imgutil-application  任务编排、幂等、持久化队列、超时及清理
             ↓
 craftstudio-imgutil-infra        AWT/ImageIO、SVG DOM、文件存储、OSS
             ↓
@@ -84,22 +84,21 @@ curl -o label.png http://127.0.0.1:8092/api/graphics/tasks/demo-label-001/artifa
 | 控制项 | 默认值 |
 | --- | --- |
 | 绘图工作线程 | 2 |
-| 等待队列 | 请求持久化到数据目录，受本地存储容量约束 |
+| 等待队列 | 请求持久化到数据目录 |
 | 输入、旋转及累计画布像素 | 无应用层上限 |
 | DPI | 600 |
 | 请求体 / 输出文件 | 1 MiB / 32 MiB |
 | SVG 节点 / 嵌套深度 | 20,000 / 64 |
 | 单任务执行超时 | 30 秒，不含排队时间 |
 | 本地文件及任务保留 | 24 小时，每 10 分钟清理 |
-| 本地容量准入阈值 | 2 GiB，另外预留并发输出空间 |
 
-绘图线程忙时，提交返回 `202 / QUEUED`。工作线程空闲后自动领取任务。本地容量不足时提交返回 `503` 和 `Retry-After`。旧 graphics.queue-capacity、max-dimension 和 max-pixels 配置可从部署配置中删除。capabilities 返回 pixelLimitsEnabled=false，不再返回 maxDimension/maxPixels。
+绘图线程忙时，提交返回 `202 / QUEUED`。工作线程空闲后自动领取任务。存储容量由数据卷管理。旧 `graphics.max-storage-bytes`、`graphics.queue-capacity`、`max-dimension` 和 `max-pixels` 配置可从部署配置中删除。capabilities 返回 pixelLimitsEnabled=false，不再返回 maxDimension/maxPixels。
 
 超时会标记 `TIMED_OUT` 并中断工作线程，但 Java AWT、PNG 编码和部分 I/O 不保证立即响应中断；实际工作退出前始终占用原并发槽位，不会因超时不断创建新线程。**最终资源隔离依靠独立 JVM、容器 CPU/内存限额及 OOM 自动退出重启**。首版不提供单任务子进程强制终止。
 
 任务状态和排队请求持久化为原子写入的 JSON，图片通过文件流输出。重启后继续领取已保存请求的 `QUEUED` 任务。重启中断的 `RUNNING` 任务以及旧版缺少请求体的 `QUEUED` 记录会标记为 `FAILED / SERVICE_RESTARTED`，由 MES 使用新编号重试。
 
-当前是**单实例文件存储方案**，数据目录有进程锁。同一目录不可运行多个实例；横向扩容前应替换任务仓储及队列，或在 MES 侧明确分片路由。请给数据卷设置宿主机配额，容量准入检查不是操作系统硬配额。
+当前是**单实例文件存储方案**，数据目录有进程锁。同一目录不可运行多个实例；横向扩容前应替换任务仓储及队列，或在 MES 侧明确分片路由。
 
 ## OSS
 
