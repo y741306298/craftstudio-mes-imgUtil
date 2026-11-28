@@ -39,7 +39,7 @@ class AppGraphicsTaskServiceTest {
         }
         fail("任务未进入 " + status + ": " + service.find(id)); return null;
     }
-    @Test void boundsQueueHandlesIdempotencyAndPersistsArtifacts() throws Exception {
+    @Test void acceptsBeyondLegacyQueueCapacityHandlesIdempotencyAndPersistsArtifacts() throws Exception {
         var props = properties(10); var mapper = new JsonMapper(); var repo = new FileJobRepository(props, mapper); var store = new FileArtifactStore(props);
         var started = new CountDownLatch(1); var release = new CountDownLatch(1);
         var service = new AppGraphicsTaskService(repo, store, renderer(started, release, false), props, mapper);
@@ -48,11 +48,15 @@ class AppGraphicsTaskServiceTest {
             service.submit(request("second", 1));
             assertEquals("first", service.submit(request("first", 1)).taskId());
             assertEquals(409, assertThrows(TaskException.class, () -> service.submit(request("first", 2))).status());
-            assertEquals(429, assertThrows(TaskException.class, () -> service.submit(request("third", 1))).status());
-            assertTrue(repo.find("third").isEmpty());
+            assertEquals(JobStatus.QUEUED, service.submit(request("third", 1)).status());
+            assertEquals(JobStatus.QUEUED, repo.find("third").orElseThrow().status());
+            assertEquals(2, service.queuedCount());
+            assertEquals(JobStatus.QUEUED, service.submit(request("third", 1)).status());
+            assertEquals(2, service.queuedCount());
             release.countDown();
             var job = await(service, "first", JobStatus.SUCCEEDED);
             var secondJob = await(service, "second", JobStatus.SUCCEEDED);
+            await(service, "third", JobStatus.SUCCEEDED);
             String filename = job.artifact().filename();
             assertEquals(UUID.fromString(filename.substring(0, 36)) + ".png", filename);
             assertNotEquals(filename, secondJob.artifact().filename());
@@ -73,11 +77,67 @@ class AppGraphicsTaskServiceTest {
             await(service, "slow", JobStatus.TIMED_OUT);
             service.submit(request("queued", 1));
             assertEquals(1, service.activeCount()); assertEquals(JobStatus.QUEUED, service.find("queued").status());
-            assertEquals(429, assertThrows(TaskException.class, () -> service.submit(request("overflow", 1))).status());
+            assertEquals(JobStatus.QUEUED, service.submit(request("overflow", 1)).status());
             release.countDown(); await(service, "queued", JobStatus.SUCCEEDED);
+            await(service, "overflow", JobStatus.SUCCEEDED);
             assertEquals(JobStatus.TIMED_OUT, service.find("slow").status());
             assertThrows(TaskException.class, () -> service.artifact("slow"));
         } finally { release.countDown(); service.close(); store.close(); }
+    }
+    @Test void resumesQueuedRequestsAfterRestart() throws Exception {
+        var props = properties(10);
+        var mapper = new JsonMapper();
+        var repo = new FileJobRepository(props, mapper);
+        var store = new FileArtifactStore(props);
+        var started = new CountDownLatch(1);
+        var release = new CountDownLatch(1);
+        var original = new AppGraphicsTaskService(repo, store, renderer(started, release, false), props, mapper);
+        var queued = request("queued", 7);
+        try {
+            original.submit(request("running", 1));
+            assertTrue(started.await(2, TimeUnit.SECONDS));
+            original.submit(queued);
+        } finally {
+            original.close();
+            release.countDown();
+            store.close();
+        }
+        assertEquals(queued, repo.find("queued").orElseThrow().queuedRequest());
+
+        var reopened = new FileJobRepository(props, mapper);
+        var reopenedStore = new FileArtifactStore(props);
+        var resumed = new AppGraphicsTaskService(reopened, reopenedStore,
+                renderer(new CountDownLatch(0), new CountDownLatch(0), false), props, mapper);
+        try {
+            assertEquals("queued", resumed.submit(queued).taskId());
+            assertNull(await(resumed, "queued", JobStatus.SUCCEEDED).queuedRequest());
+            assertArrayEquals(new byte[]{1, 2, 3}, Files.readAllBytes(resumed.artifact("queued")));
+        } finally {
+            resumed.close();
+            reopenedStore.close();
+        }
+    }
+    @Test void checksStorageAgainWhenAQueuedTaskStarts() throws Exception {
+        var props = properties(10);
+        var mapper = new JsonMapper();
+        var repo = new FileJobRepository(props, mapper);
+        var store = new FileArtifactStore(props);
+        var started = new CountDownLatch(1);
+        var release = new CountDownLatch(1);
+        var service = new AppGraphicsTaskService(repo, store, renderer(started, release, false), props, mapper);
+        try {
+            service.submit(request("running", 1));
+            assertTrue(started.await(2, TimeUnit.SECONDS));
+            assertEquals(JobStatus.QUEUED, service.submit(request("queued", 1)).status());
+            Files.write(directory.resolve("storage-usage"), new byte[(int) props.maxStorageBytes()]);
+            assertEquals(503, assertThrows(TaskException.class, () -> service.submit(request("new", 1))).status());
+            release.countDown();
+            assertEquals("STORAGE_FULL", await(service, "queued", JobStatus.FAILED).errorCode());
+        } finally {
+            release.countDown();
+            service.close();
+            store.close();
+        }
     }
     @Test void recoversInterruptedJobsAndCleansExpiredResults() throws Exception {
         var props = properties(10); var mapper = new JsonMapper(); var repo = new FileJobRepository(props, mapper); var store = new FileArtifactStore(props);

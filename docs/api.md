@@ -22,7 +22,7 @@
 
 生产 MES 使用主动回调：在同一请求增加 `callbackConfig: {callbackUrl, callbackCustomValue}`。图形服务完成后签名 POST 最终结果；成功或失败都回调，投递失败按 5 秒、10 秒、30 秒、1 分钟、5 分钟的间隔最多重试 5 次并持久化状态。MES 回调格式和验签规则见 [异步接口文档](mes-async-api.md)。以下 GET 查询说明用于人工排障或未配置回调的独立调用方。
 
-状态为 `QUEUED → RUNNING → SUCCEEDED / FAILED / TIMED_OUT`，重启中断的任务转为 `FAILED`。客户端每隔 0.5–2 秒查询一次，设置整体截止时间；不要在 MES 的 Web 请求线程中无限等待。重复提交时必须保持参数一致；幂等保留期与任务保留期相同。
+状态为 `QUEUED → RUNNING → SUCCEEDED / FAILED / TIMED_OUT`。服务先持久化请求，再返回 `HTTP 202 / QUEUED`。重启后继续处理包含请求体的排队任务，重启中断的执行中任务转为 `FAILED`。未配置回调的客户端可每隔 0.5–2 秒查询一次并设置整体截止时间。重复提交时必须保持参数一致，幂等保留期与任务保留期相同。
 
 成功结果：
 
@@ -105,10 +105,9 @@ EDIT 只接收标准 SVG 命名空间，根节点必须有数值宽高（可带 
 | 409 IDEMPOTENCY_CONFLICT | 相同编号已绑定不同参数；使用新编号 |
 | 409 ARTIFACT_NOT_READY | 等待成功或检查失败原因 |
 | 413 REQUEST_TOO_LARGE | 减小内联 SVG/请求体 |
-| 429 QUEUE_FULL | 根据 Retry-After 退避，同编号重试 |
 | 503 STORAGE_FULL | 清理/扩容本地存储后重试 |
 
-异步失败在查询结果中返回 `errorCode`，例如 INVALID_GRAPHICS、RENDER_FAILED、TASK_TIMEOUT、SERVICE_RESTARTED；查询本身仍返回 200。网络不确定时先用原编号查询或重发，避免重复生成。
+异步失败在查询结果中返回 `errorCode`，例如 INVALID_GRAPHICS、RENDER_FAILED、TASK_TIMEOUT、SERVICE_RESTARTED。排队期间本地存储达到准入阈值时，任务执行前会以 STORAGE_FULL 结束。查询本身仍返回 200。网络不确定时先用原编号查询或重发，避免重复生成。
 
 DOUBLE_TAG 的 qrDataUri 可省略。双面对裱固定箭头由 MES 作为独立 mark 提交；旧版 MES 将固定箭头 URL 误放到二维码位时兼容忽略该占位值，保持原布局。图形服务不会下载这些 URL；实际二维码仍使用 qr-content 或 PNG data URI。
 

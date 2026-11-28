@@ -8,7 +8,9 @@ import com.craftstudio.imgutil.infra.config.GraphicsProperties;
 import jakarta.annotation.PreDestroy;
 import org.springframework.stereotype.Component;
 import org.springframework.context.annotation.DependsOn;
+import java.io.IOException;
 import java.nio.file.*;
+import java.nio.file.attribute.BasicFileAttributes;
 import java.security.MessageDigest;
 import java.util.HexFormat;
 import java.util.UUID;
@@ -73,15 +75,27 @@ public class FileArtifactStore implements ArtifactStore {
         }
     }
     @Override public boolean hasCapacity() {
-        try (var files = Files.walk(root)) {
-            long used = 0, reserve = Math.multiplyExact((long) properties.maxArtifactBytes(), properties.workers() + 1L);
-            var iterator = files.iterator();
-            while (iterator.hasNext()) {
-                Path p = iterator.next(); if (Files.isRegularFile(p)) used += Files.size(p);
-                if (used > properties.maxStorageBytes() - reserve) return false;
-            }
-            return Files.getFileStore(root).getUsableSpace() > reserve;
-        } catch (Exception e) { return false; }
+        long reserve = (long) properties.maxArtifactBytes() * (properties.workers() + 1L);
+        long limit = properties.maxStorageBytes() - reserve;
+        try {
+            if (limit < 0 || Files.getFileStore(root).getUsableSpace() <= reserve) return false;
+            var usage = new SimpleFileVisitor<Path>() {
+                long used;
+
+                @Override public FileVisitResult visitFile(Path path, BasicFileAttributes attributes) {
+                    if (attributes.isRegularFile()) used += attributes.size();
+                    return used > limit ? FileVisitResult.TERMINATE : FileVisitResult.CONTINUE;
+                }
+
+                @Override public FileVisitResult visitFileFailed(Path path, IOException error) throws IOException {
+                    // Renderers can move temporary files while the capacity check is walking the data directory.
+                    if (error instanceof NoSuchFileException) return FileVisitResult.CONTINUE;
+                    throw error;
+                }
+            };
+            Files.walkFileTree(root, usage);
+            return usage.used <= limit;
+        } catch (IOException e) { return false; }
     }
     private String key(String id, String filename) {
         String prefix = properties.oss().prefix();
