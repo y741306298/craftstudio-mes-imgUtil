@@ -12,6 +12,8 @@ import tools.jackson.databind.json.JsonMapper;
 
 import java.nio.file.*;
 import java.security.MessageDigest;
+import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HexFormat;
 import java.util.HashSet;
 import java.util.Set;
@@ -38,15 +40,21 @@ public class AppGraphicsTaskService {
     public AppGraphicsTaskService(JobRepository jobs, ArtifactStore artifacts, GraphicsRenderer renderer, GraphicsProperties properties, JsonMapper mapper, CallbackRepository callbacks) {
         this.jobs = jobs; this.artifacts = artifacts; this.renderer = renderer; this.properties = properties;
         this.callbacks=callbacks;
+        var pending = new ArrayList<PendingJob>();
         jobs.forEach(job -> {
-            if (!job.status().terminal()) {
+            if (job.status() == JobStatus.QUEUED && job.queuedRequest() != null) {
+                registerCallback(job.queuedRequest());
+                pending.add(new PendingJob(job.taskId(), job.createdAt()));
+            } else if (!job.status().terminal()) {
                 jobs.save(job.transition(JobStatus.FAILED, null, "SERVICE_RESTARTED", "服务重启中断了任务，请使用新的 requestId 重试"));
                 try { artifacts.delete(job.taskId()); } catch (Exception e) { log.warn("清理中断任务失败: {}", job.taskId(), e); }
             }
         });
         timer.setRemoveOnCancelPolicy(true);
         executor = new ThreadPoolExecutor(properties.workers(), properties.workers(), 0, TimeUnit.SECONDS,
-                new ArrayBlockingQueue<>(properties.queueCapacity()), Thread.ofPlatform().name("graphics-worker-", 0).factory(), new ThreadPoolExecutor.AbortPolicy());
+                new LinkedBlockingQueue<>(), Thread.ofPlatform().name("graphics-worker-", 0).factory());
+        pending.sort(Comparator.comparingLong(PendingJob::createdAt).thenComparing(PendingJob::id));
+        pending.forEach(job -> enqueue(job.id()));
     }
 
     public synchronized GraphicsJob submit(GraphicsRequest request) {
@@ -58,19 +66,31 @@ public class AppGraphicsTaskService {
             if (!existing.get().fingerprint().equals(fingerprint)) throw new TaskException(409, "IDEMPOTENCY_CONFLICT", "requestId 已被其他参数使用");
             return existing.get();
         }
+        if (executor.isShutdown()) throw new TaskException(503, "SERVICE_STOPPING", "图形服务正在停止，请稍后重试");
         renderer.validate(request);
-        if (!artifacts.hasCapacity()) throw new TaskException(503, "STORAGE_FULL", "存储容量不足，请稍后重试");
         long now = System.currentTimeMillis();
-        GraphicsJob job = new GraphicsJob(request.requestId(), fingerprint, JobStatus.QUEUED, now, now, null, null, null);
+        GraphicsJob job = new GraphicsJob(request.requestId(), fingerprint, JobStatus.QUEUED, now, now,
+                null, null, null, request);
         jobs.save(job);
         try {
-            if(request.callbackConfig()!=null)callbacks.register(job.taskId(),request.callbackConfig());
-            executor.execute(() -> execute(request));
+            registerCallback(request);
+            enqueue(job.taskId());
+        } catch (RuntimeException e) {
+            jobs.delete(job.taskId());
+            if (request.callbackConfig() != null) callbacks.delete(job.taskId());
+            throw e;
         }
-        catch (RejectedExecutionException e) { jobs.delete(job.taskId());if(callbacks!=null)callbacks.delete(job.taskId());throw new TaskException(429, "QUEUE_FULL", "图形任务队列已满，请稍后重试"); }
-        catch (RuntimeException e) { jobs.delete(job.taskId());if(callbacks!=null)callbacks.delete(job.taskId());throw e; }
         return job;
     }
+    private void registerCallback(GraphicsRequest request) {
+        if (request.callbackConfig() != null) callbacks.register(request.requestId(), request.callbackConfig());
+    }
+    private void enqueue(String id) {
+        // Keep only task IDs in memory. Request bodies stay on disk until a worker starts them.
+        executor.execute(() -> execute(id));
+    }
+    private record PendingJob(String id, long createdAt) {}
+
     public GraphicsJob find(String id) { return jobs.find(id).orElseThrow(() -> new TaskException(404, "TASK_NOT_FOUND", "任务不存在或已过期")); }
     public Path artifact(String id) {
         GraphicsJob job = find(id);
@@ -79,12 +99,21 @@ public class AppGraphicsTaskService {
         if (!Files.isRegularFile(file)) throw new TaskException(404, "ARTIFACT_EXPIRED", "文件已过期");
         return file;
     }
-    private void execute(GraphicsRequest request) {
-        String id = request.requestId(); Path temporary = null;
+    private void execute(String id) {
+        Path temporary = null;
         Thread worker = Thread.currentThread(); ScheduledFuture<?> deadline = null;
+        boolean started = false;
         try {
-            synchronized (this) { executing.add(id); jobs.save(find(id).transition(JobStatus.RUNNING, null, null, null)); }
-            deadline = timer.schedule(() -> timeout(id, worker), properties.taskTimeoutSeconds(), TimeUnit.SECONDS);
+            GraphicsRequest request;
+            synchronized (this) {
+                if (executor.isShutdown()) return;
+                GraphicsJob job = find(id);
+                request = job.queuedRequest();
+                jobs.save(job.transition(JobStatus.RUNNING, null, null, null));
+                executing.add(id);
+                started = true;
+                deadline = timer.schedule(() -> timeout(id, worker), properties.taskTimeoutSeconds(), TimeUnit.SECONDS);
+            }
             temporary = artifacts.createTemporary(id);
             RenderResult result;
             try (var out = new LimitedOutputStream(Files.newOutputStream(temporary), properties.maxArtifactBytes())) { result = renderer.render(request, out); }
@@ -103,15 +132,18 @@ public class AppGraphicsTaskService {
                         e instanceof IllegalArgumentException ? e.getMessage() : "图形处理失败，请检查服务日志"));
             }
         } finally {
-            if (deadline != null) deadline.cancel(false);
-            // Cancellation does not release a worker slot until this method really exits.
-            synchronized (this) { Thread.interrupted(); }
-            try {
-                if (temporary != null) Files.deleteIfExists(temporary);
-                if (find(id).status() != JobStatus.SUCCEEDED) artifacts.delete(id);
-            } catch (Exception e) { log.warn("清理任务文件失败: {}", id, e); }
-            synchronized (this) { executing.remove(id); }
+            if (started) finishExecution(id, temporary, deadline);
         }
+    }
+    private void finishExecution(String id, Path temporary, ScheduledFuture<?> deadline) {
+        if (deadline != null) deadline.cancel(false);
+        // Cancellation does not release a worker slot until this method really exits.
+        synchronized (this) { Thread.interrupted(); }
+        try {
+            if (temporary != null) Files.deleteIfExists(temporary);
+            if (find(id).status() != JobStatus.SUCCEEDED) artifacts.delete(id);
+        } catch (Exception e) { log.warn("清理任务文件失败: {}", id, e); }
+        synchronized (this) { executing.remove(id); }
     }
     private synchronized void timeout(String id, Thread worker) {
         GraphicsJob job = find(id);
@@ -140,7 +172,10 @@ public class AppGraphicsTaskService {
     public int activeCount() { return executor.getActiveCount(); }
     public int queuedCount() { return executor.getQueue().size(); }
     @PreDestroy public void close() {
-        executor.shutdownNow(); timer.shutdownNow();
+        synchronized (this) {
+            executor.shutdownNow();
+            timer.shutdownNow();
+        }
         try { if (!executor.awaitTermination(10, TimeUnit.SECONDS)) log.warn("存在未退出的图形任务，由容器终止进程"); }
         catch (InterruptedException e) { Thread.currentThread().interrupt(); }
     }

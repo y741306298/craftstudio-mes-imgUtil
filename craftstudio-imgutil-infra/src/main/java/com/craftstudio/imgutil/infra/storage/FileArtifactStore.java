@@ -20,11 +20,13 @@ public class FileArtifactStore implements ArtifactStore {
     private static final Pattern ARTIFACT_FILENAME = Pattern.compile(
             "(?:result|[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12})\\.(?:png|svg)");
     private final GraphicsProperties properties;
-    private final Path root, artifacts, temporary;
+    private final Path artifacts, temporary;
     private final OSS oss;
     public FileArtifactStore(GraphicsProperties properties) throws Exception {
         this.properties = properties;
-        root = Path.of(properties.dataDirectory()).toAbsolutePath(); artifacts = root.resolve("artifacts"); temporary = root.resolve("tmp");
+        Path root = Path.of(properties.dataDirectory()).toAbsolutePath();
+        artifacts = root.resolve("artifacts");
+        temporary = root.resolve("tmp");
         Files.createDirectories(artifacts); Files.createDirectories(temporary);
         try (var leftovers = Files.newDirectoryStream(temporary)) { for (Path p : leftovers) Files.deleteIfExists(p); }
         if (properties.oss() != null && properties.oss().enabled()) {
@@ -71,17 +73,6 @@ public class FileArtifactStore implements ArtifactStore {
             try (var files = Files.newDirectoryStream(directory)) { for (Path p : files) Files.deleteIfExists(p); }
             Files.deleteIfExists(directory);
         }
-    }
-    @Override public boolean hasCapacity() {
-        try (var files = Files.walk(root)) {
-            long used = 0, reserve = Math.multiplyExact((long) properties.maxArtifactBytes(), properties.workers() + 1L);
-            var iterator = files.iterator();
-            while (iterator.hasNext()) {
-                Path p = iterator.next(); if (Files.isRegularFile(p)) used += Files.size(p);
-                if (used > properties.maxStorageBytes() - reserve) return false;
-            }
-            return Files.getFileStore(root).getUsableSpace() > reserve;
-        } catch (Exception e) { return false; }
     }
     private String key(String id, String filename) {
         String prefix = properties.oss().prefix();

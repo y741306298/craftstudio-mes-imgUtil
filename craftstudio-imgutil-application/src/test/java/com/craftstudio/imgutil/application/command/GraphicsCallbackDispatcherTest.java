@@ -32,7 +32,7 @@ class GraphicsCallbackDispatcherTest {
     private final AtomicReference<String> payload=new AtomicReference<>();
     private final AtomicReference<String> signature=new AtomicReference<>();
     @BeforeEach void setup()throws Exception{
-        properties=new GraphicsProperties("secret",root.toString(),1,1,30,24,8192,8000000,600,1048576,33554432,20000,64,2147483648L,null);
+        properties=new GraphicsProperties("secret",root.toString(),1,1,30,24,8192,8000000,600,1048576,33554432,20000,64,null);
         jobs=new FileJobRepository(properties,mapper);callbacks=new FileCallbackRepository(properties,mapper);dispatcher=new GraphicsCallbackDispatcher(callbacks,jobs,properties,mapper);
         server=HttpServer.create(new InetSocketAddress("127.0.0.1",0),0);
         server.createContext("/callback",exchange->{payload.set(new String(exchange.getRequestBody().readAllBytes(),StandardCharsets.UTF_8));signature.set(exchange.getRequestHeaders().getFirst("X-Graphics-Signature"));calls.incrementAndGet();exchange.sendResponseHeaders(status.get(),-1);exchange.close();});server.start();
@@ -54,6 +54,55 @@ class GraphicsCallbackDispatcherTest {
         dispatcher.deliverDue();assertEquals(1,calls.get());
         callbacks.save(new CallbackDelivery(delivery.taskId(),delivery.config(),delivery.attempts(),0,"PENDING",delivery.lastError()));status.set(200);dispatcher.deliverDue();
         assertEquals(first,payload.get());assertEquals(2,callbacks.find("task").orElseThrow().attempts());assertEquals("DELIVERED",callbacks.find("task").orElseThrow().status());
+        dispatcher.deliverDue();
+        assertEquals(2, calls.get());
+    }
+
+    @Test void schedulesFiveRetriesAndStopsAfterSixFailedDeliveries() {
+        register();
+        jobs.save(success());
+        status.set(503);
+        long[] delaysMs = {5_000, 10_000, 30_000, 60_000, 300_000};
+
+        for (int i = 0; i < delaysMs.length; i++) {
+            long before = System.currentTimeMillis();
+            dispatcher.deliverDue();
+            long after = System.currentTimeMillis();
+            var delivery = callbacks.find("task").orElseThrow();
+            assertEquals(i + 1, delivery.attempts());
+            assertEquals(i + 1, calls.get());
+            assertEquals("PENDING", delivery.status());
+            assertTrue(delivery.nextAttemptAt() >= before + delaysMs[i]);
+            assertTrue(delivery.nextAttemptAt() <= after + delaysMs[i]);
+            callbacks.save(new CallbackDelivery(delivery.taskId(), delivery.config(), delivery.attempts(),
+                    0, "PENDING", delivery.lastError()));
+        }
+
+        dispatcher.deliverDue();
+        var delivery = callbacks.find("task").orElseThrow();
+        assertEquals(6, delivery.attempts());
+        assertEquals("FAILED", delivery.status());
+        assertEquals(0, delivery.nextAttemptAt());
+        assertEquals("HTTP 503", delivery.lastError());
+        dispatcher.deliverDue();
+        assertEquals(6, calls.get());
+    }
+
+    @Test void stopsPendingDeliveriesThatAlreadyExhaustedTheNewLimit() {
+        register();
+        jobs.save(success());
+        var delivery = callbacks.find("task").orElseThrow();
+        callbacks.save(new CallbackDelivery(delivery.taskId(), delivery.config(), 8,
+                Long.MAX_VALUE, "PENDING", "HTTP 503"));
+
+        dispatcher.deliverDue();
+
+        var failed = callbacks.find("task").orElseThrow();
+        assertEquals(0, calls.get());
+        assertEquals(8, failed.attempts());
+        assertEquals("FAILED", failed.status());
+        assertEquals(0, failed.nextAttemptAt());
+        assertEquals("HTTP 503", failed.lastError());
     }
     @Test void sendsFailureAndIgnoresNonTerminalJobs(){
         register();jobs.save(success().transition(JobStatus.RUNNING,null,null,null));dispatcher.deliverDue();assertEquals(0,calls.get());

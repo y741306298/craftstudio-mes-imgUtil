@@ -21,6 +21,9 @@ import java.util.concurrent.atomic.AtomicBoolean;
 @Service
 public class GraphicsCallbackDispatcher {
     private static final Logger log=LoggerFactory.getLogger(GraphicsCallbackDispatcher.class);
+    private static final List<Duration> RETRY_DELAYS = List.of(
+            Duration.ofSeconds(5), Duration.ofSeconds(10), Duration.ofSeconds(30),
+            Duration.ofMinutes(1), Duration.ofMinutes(5));
     private final CallbackRepository callbacks;
     private final JobRepository jobs;
     private final GraphicsProperties properties;
@@ -40,7 +43,14 @@ public class GraphicsCallbackDispatcher {
     public void deliverDue(){
         int[] processed={0};
         callbacks.forEach(delivery->{
-            if(processed[0]>=16 || !"PENDING".equals(delivery.status()) || delivery.nextAttemptAt()>System.currentTimeMillis())return;
+            if (processed[0] >= 16 || !"PENDING".equals(delivery.status())) return;
+            // A pending record from before the retry limit changed may already be exhausted.
+            if (delivery.attempts() > RETRY_DELAYS.size()) {
+                processed[0]++;
+                saveFailure(delivery, delivery.attempts(), delivery.lastError());
+                return;
+            }
+            if (delivery.nextAttemptAt() > System.currentTimeMillis()) return;
             var job=jobs.find(delivery.taskId());
             if(job.isEmpty()||!job.get().status().terminal())return;
             processed[0]++;deliver(delivery,job.get());
@@ -63,10 +73,17 @@ public class GraphicsCallbackDispatcher {
             callbacks.save(new CallbackDelivery(job.taskId(),delivery.config(),attempts,0,"DELIVERED",null));
         }catch(Exception e){
             if(e instanceof InterruptedException)Thread.currentThread().interrupt();
-            long delay=Math.min(300000L,5000L*(1L<<Math.min(attempts-1,6)));
-            callbacks.save(new CallbackDelivery(job.taskId(),delivery.config(),attempts,System.currentTimeMillis()+delay,attempts>=10?"FAILED":"PENDING",e.getMessage()));
+            saveFailure(delivery, attempts, e.getMessage());
             log.warn("图形回调投递失败: taskId={}, attempt={}, error={}",job.taskId(),attempts,e.getMessage());
         }
     }
+
+    private void saveFailure(CallbackDelivery delivery, int attempts, String error) {
+        boolean canRetry = attempts <= RETRY_DELAYS.size();
+        long nextAttemptAt = canRetry ? System.currentTimeMillis() + RETRY_DELAYS.get(attempts - 1).toMillis() : 0;
+        callbacks.save(new CallbackDelivery(delivery.taskId(), delivery.config(), attempts, nextAttemptAt,
+                canRetry ? "PENDING" : "FAILED", error));
+    }
+
     @PreDestroy public void close(){worker.shutdownNow();http.close();}
 }
